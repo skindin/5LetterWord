@@ -65,7 +65,11 @@ export default function App() {
   const targetWord = currentGame?.targetWord || '';
   const guesses = currentGame?.guesses || [];
   const gameStatus: string = currentGame?.status || 'loading';
-  const rawDate = currentGame?.date || '';
+  
+  let rawDate = currentGame?.date;
+  if (!rawDate && Object.keys(history).length > 0) {
+    rawDate = Object.values(history)[0].date;
+  }
 
   const updateCurrentGame = useCallback((updates: Partial<GameState>) => {
     setHistory(prev => ({
