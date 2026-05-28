@@ -69,17 +69,15 @@ app.get('/api/valid-words', (req, res) => {
     res.json(targetWords);
 });
 
-// Serve static frontend files in production
-if (process.env.NODE_ENV === 'production') {
-    app.use(express.static(path.join(__dirname, '../dist')));
-    app.use((req, res, next) => {
-        if (req.method === 'GET') {
-            res.sendFile(path.join(__dirname, '../dist/index.html'));
-        } else {
-            next();
-        }
-    });
-}
+// Serve static frontend files
+app.use(express.static(path.join(__dirname, '../dist')));
+app.use((req, res, next) => {
+    if (req.method === 'GET') {
+        res.sendFile(path.join(__dirname, '../dist/index.html'));
+    } else {
+        next();
+    }
+});
 
 app.listen(PORT, () => {
     console.log(`Server running on port ${PORT}`);
