@@ -72,6 +72,10 @@ export default function App() {
   const [token, setToken] = useState<string | null>(null);
   const [isStatsOpen, setIsStatsOpen] = useState(false);
   
+  const [isAuthChecking, setIsAuthChecking] = useState(() => {
+    return !!localStorage.getItem('token');
+  });
+  
   // Social & Username States
   const [username, setUsername] = useState<string | null>(null);
   const [userProfile, setUserProfile] = useState<{ name: string; picture: string } | null>(null);
@@ -134,6 +138,7 @@ export default function App() {
           setUserProfile(data.user);
           localStorage.setItem('userProfile', JSON.stringify(data.user));
         }
+        setIsAuthChecking(false);
       })
       .catch(err => {
         console.error("Auth validation failed", err);
@@ -143,12 +148,17 @@ export default function App() {
         setToken(null);
         setUsername(null);
         setUserProfile(null);
+        setIsAuthChecking(false);
       });
+    } else {
+      setIsAuthChecking(false);
     }
   }, []);
 
   // Fetch target word when viewing a level we haven't fetched yet
   useEffect(() => {
+    if (isAuthChecking) return;
+    
     if (!history[viewingIndex] && !isFetching) {
       setIsFetching(true);
       fetch(`/api/word?index=${viewingIndex}`)
@@ -170,7 +180,7 @@ export default function App() {
           setIsFetching(false);
         });
     }
-  }, [viewingIndex, history, isFetching]);
+  }, [viewingIndex, history, isFetching, isAuthChecking]);
 
   // Check URL parameters for a friend request link
   useEffect(() => {

@@ -7,11 +7,7 @@ html, body {
   padding: 0;
   width: 100%;
   height: 100%;
-  height: 100dvh;
-  overflow: hidden; /* Disable page scroll bouncing entirely */
-  overscroll-behavior: none; /* Disable elastic scroll bounce */
   user-select: none;
-  position: fixed; /* Lock iOS elastic bouncing and address bar resizing */
 }
 
 :root {
@@ -59,13 +55,11 @@ body {
   max-width: 500px;
   display: flex;
   flex-direction: column;
-  height: 100%;
-  height: 100dvh;
+  min-height: 100%;
+  min-height: 100dvh;
   padding: 1rem;
   padding-top: calc(1rem + env(safe-area-inset-top));
   padding-bottom: calc(1rem + env(safe-area-inset-bottom));
-  overflow: hidden; /* Lock the root container */
-  overscroll-behavior: none; /* Prevent elastic bounce scrolling */
 }
 
 /* Header */
