@@ -3,6 +3,7 @@ import { GoogleLogin } from '@react-oauth/google';
 import { Header } from './components/Header';
 import { Grid } from './components/Grid';
 import { Keyboard } from './components/Keyboard';
+import { StatsModal } from './components/StatsModal';
 
 type GameState = {
   targetWord: string;
@@ -66,6 +67,7 @@ export default function App() {
   const [isShaking, setIsShaking] = useState(false);
   const [isFetching, setIsFetching] = useState(false);
   const [token, setToken] = useState<string | null>(null);
+  const [isStatsOpen, setIsStatsOpen] = useState(false);
   
   const countdown = useCountdownToMidnightCT();
 
@@ -274,7 +276,11 @@ export default function App() {
         {message && <div className="message">{message}</div>}
       </div>
       
-      <Header gamesWon={gamesWon} gamesPlayed={gamesPlayed} />
+      <Header 
+        gamesWon={gamesWon} 
+        gamesPlayed={gamesPlayed} 
+        onOpenStats={() => setIsStatsOpen(true)}
+      />
       
       <main>
         {formattedDateStr && <div className="game-header">{formattedDateStr}, <strong>{wordNumStr}</strong> - {countdown} until next word list</div>}
@@ -324,6 +330,13 @@ export default function App() {
           targetWord={targetWord}
         />
       </main>
+
+      <StatsModal 
+        isOpen={isStatsOpen} 
+        onClose={() => setIsStatsOpen(false)} 
+        history={history} 
+        currentDate={rawDate || ''} 
+      />
     </>
   );
 }
