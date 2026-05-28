@@ -150,6 +150,9 @@ export default function App() {
   const isLeftDisabled = viewingIndex === 0;
   const isRightDisabled = gameStatus === 'playing' || gameStatus === 'loading';
 
+  const maxIndex = Math.max(-1, ...Object.keys(history).map(Number));
+  const shouldHighlightRight = viewingIndex === maxIndex && !isRightDisabled;
+
   const handlePrev = () => {
     if (!isLeftDisabled) {
       setViewingIndex(v => v - 1);
@@ -187,7 +190,9 @@ export default function App() {
             onClick={handlePrev}
             disabled={isLeftDisabled}
           >
-            &#10094;
+            <svg viewBox="0 0 24 24" width="24" height="24">
+              <polygon points="15,6 7,12 15,18" stroke="currentColor" strokeWidth="3" strokeLinejoin="round" fill="currentColor" />
+            </svg>
           </button>
           
           <div className="grid-content">
@@ -202,11 +207,13 @@ export default function App() {
           </div>
 
           <button 
-            className={`nav-button ${isRightDisabled ? 'disabled' : ''}`} 
+            className={`nav-button ${isRightDisabled ? 'disabled' : ''} ${shouldHighlightRight ? 'highlight' : ''}`} 
             onClick={handleNext}
             disabled={isRightDisabled}
           >
-            &#10095;
+            <svg viewBox="0 0 24 24" width="24" height="24">
+              <polygon points="9,6 17,12 9,18" stroke="currentColor" strokeWidth="3" strokeLinejoin="round" fill="currentColor" />
+            </svg>
           </button>
         </div>
         

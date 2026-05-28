@@ -140,6 +140,15 @@ main {
   background-color: var(--key-hover);
 }
 
+.nav-button.highlight {
+  background-color: var(--tile-correct);
+  color: #fff;
+}
+
+.nav-button.highlight:hover:not(.disabled) {
+  background-color: #34d399; /* lighter green for hover */
+}
+
 .nav-button.disabled {
   opacity: 0.3;
   cursor: not-allowed;
