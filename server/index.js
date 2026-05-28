@@ -331,43 +331,59 @@ app.get('/api/valid-words', (req, res) => {
     res.json(validWords);
 });
 
-// Dev-only: preview upcoming daily words (20 at a time starting from a day offset)
-app.post('/api/dev/words', async (req, res) => {
-    if (!pool) return res.status(500).json({ error: 'Database not configured' });
-
+async function requireDev(req, res) {
+    if (!pool) { res.status(500).json({ error: 'Database not configured' }); return null; }
     const payload = await verifyGoogleToken(req.body.token);
-    if (!payload) return res.status(401).json({ error: 'Invalid token' });
+    if (!payload) { res.status(401).json({ error: 'Invalid token' }); return null; }
+    const r = await pool.query('SELECT is_dev FROM users WHERE google_id = $1', [payload.sub]);
+    if (!r.rows[0]?.is_dev) { res.status(403).json({ error: 'Not authorized' }); return null; }
+    return payload;
+}
 
-    const userResult = await pool.query(
-        'SELECT is_dev FROM users WHERE google_id = $1', [payload.sub]
-    );
-    if (!userResult.rows[0]?.is_dev) return res.status(403).json({ error: 'Not authorized' });
+// Dev-only: preview one day's words at a given day offset from today
+app.post('/api/dev/words', async (req, res) => {
+    if (!await requireDev(req, res)) return;
 
-    const PAGE_SIZE = 20;
     const offset = parseInt(req.body.offset) || 0;
+    const date = new Date();
+    date.setDate(date.getDate() + offset);
+    const dateStr = formatInTimeZone(date, 'America/Chicago', 'yyyy-MM-dd');
 
-    // Build a list of PAGE_SIZE days starting from today + offset
-    const { formatInTimeZone: fmt } = await import('date-fns-tz');
-    const results = [];
-    for (let i = 0; i < PAGE_SIZE; i++) {
-        const dayOffset = offset + i;
-        const date = new Date();
-        date.setDate(date.getDate() + dayOffset);
-        const dateStr = fmt(date, 'America/Chicago', 'yyyy-MM-dd');
-
-        // Same word-per-index logic as /api/word — generate all word slots for that date
-        const wordSlots = [];
-        for (let wordIndex = 0; wordIndex < 3; wordIndex++) {
-            const seedString = `${dateStr}-${wordIndex}`;
-            const seedNumber = hashString(seedString);
-            const rng = mulberry32(seedNumber);
-            const randIndex = Math.floor(rng() * targetWords.length);
-            wordSlots.push(targetWords[randIndex]);
-        }
-        results.push({ dayOffset, date: dateStr, words: wordSlots });
+    const words = [];
+    for (let wordIndex = 0; wordIndex < 3; wordIndex++) {
+        const seedString = `${dateStr}-${wordIndex}`;
+        const rng = mulberry32(hashString(seedString));
+        words.push(targetWords[Math.floor(rng() * targetWords.length)]);
     }
 
-    res.json({ offset, results });
+    res.json({ offset, date: dateStr, words });
+});
+
+// Dev-only: list all users (email, username, google_id)
+app.post('/api/dev/users', async (req, res) => {
+    if (!await requireDev(req, res)) return;
+    const r = await pool.query(
+        'SELECT google_id, email, username, display_name FROM users ORDER BY display_name'
+    );
+    res.json({ users: r.rows });
+});
+
+// Dev-only: wipe a player's game history
+app.post('/api/dev/wipe-history', async (req, res) => {
+    if (!await requireDev(req, res)) return;
+    const { targetGoogleId } = req.body;
+    if (!targetGoogleId) return res.status(400).json({ error: 'targetGoogleId required' });
+    await pool.query("UPDATE users SET history = '{}' WHERE google_id = $1", [targetGoogleId]);
+    res.json({ success: true });
+});
+
+// Dev-only: delete a player's account entirely
+app.post('/api/dev/delete-account', async (req, res) => {
+    if (!await requireDev(req, res)) return;
+    const { targetGoogleId } = req.body;
+    if (!targetGoogleId) return res.status(400).json({ error: 'targetGoogleId required' });
+    await pool.query('DELETE FROM users WHERE google_id = $1', [targetGoogleId]);
+    res.json({ success: true });
 });
 
 // Serve static frontend files

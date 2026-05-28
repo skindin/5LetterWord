@@ -1,87 +1,199 @@
 import { useState } from 'react';
 
-interface DayEntry {
-  dayOffset: number;
-  date: string;
-  words: string[];
+interface User {
+  google_id: string;
+  email: string;
+  username: string | null;
+  display_name: string | null;
 }
 
 interface Props {
   token: string;
 }
 
+type Tab = 'words' | 'players';
+
 export default function DevPanel({ token }: Props) {
   const [isOpen, setIsOpen] = useState(false);
+  const [tab, setTab] = useState<Tab>('words');
+
+  // Words tab
   const [offset, setOffset] = useState(0);
-  const [results, setResults] = useState<DayEntry[]>([]);
-  const [loading, setLoading] = useState(false);
+  const [dayData, setDayData] = useState<{ date: string; words: string[] } | null>(null);
+  const [wordsLoading, setWordsLoading] = useState(false);
+
+  // Players tab
+  const [users, setUsers] = useState<User[]>([]);
+  const [usersLoading, setUsersLoading] = useState(false);
+  const [actionMsg, setActionMsg] = useState<string | null>(null);
+  const [confirmTarget, setConfirmTarget] = useState<{ user: User; action: 'wipe' | 'delete' } | null>(null);
+
   const [error, setError] = useState<string | null>(null);
 
-  const fetch20 = async (newOffset: number) => {
-    setLoading(true);
+  const apiPost = async (path: string, body: object) => {
+    const res = await fetch(path, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ token, ...body }),
+    });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error || 'Request failed');
+    return data;
+  };
+
+  const fetchDay = async (newOffset: number) => {
+    setWordsLoading(true);
     setError(null);
     try {
-      const res = await fetch('/api/dev/words', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ token, offset: newOffset }),
-      });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error || 'Request failed');
-      setResults(data.results);
+      const data = await apiPost('/api/dev/words', { offset: newOffset });
+      setDayData({ date: data.date, words: data.words });
       setOffset(newOffset);
     } catch (e: any) {
       setError(e.message);
     } finally {
-      setLoading(false);
+      setWordsLoading(false);
+    }
+  };
+
+  const fetchUsers = async () => {
+    setUsersLoading(true);
+    setError(null);
+    setActionMsg(null);
+    try {
+      const data = await apiPost('/api/dev/users', {});
+      setUsers(data.users);
+    } catch (e: any) {
+      setError(e.message);
+    } finally {
+      setUsersLoading(false);
+    }
+  };
+
+  const handleOpen = () => {
+    setIsOpen(true);
+    fetchDay(0);
+  };
+
+  const switchTab = (t: Tab) => {
+    setTab(t);
+    setError(null);
+    setActionMsg(null);
+    if (t === 'players' && users.length === 0) fetchUsers();
+  };
+
+  const confirmAction = async () => {
+    if (!confirmTarget) return;
+    const { user, action } = confirmTarget;
+    setConfirmTarget(null);
+    setError(null);
+    try {
+      if (action === 'wipe') {
+        await apiPost('/api/dev/wipe-history', { targetGoogleId: user.google_id });
+        setActionMsg(`Wiped history for ${user.display_name || user.email}`);
+      } else {
+        await apiPost('/api/dev/delete-account', { targetGoogleId: user.google_id });
+        setUsers(prev => prev.filter(u => u.google_id !== user.google_id));
+        setActionMsg(`Deleted account for ${user.display_name || user.email}`);
+      }
+    } catch (e: any) {
+      setError(e.message);
     }
   };
 
   if (!isOpen) {
     return (
-      <button className="dev-panel-toggle" onClick={() => { setIsOpen(true); fetch20(0); }}>
-        🛠 Dev
-      </button>
+      <button className="dev-panel-toggle" onClick={handleOpen}>🛠 Dev</button>
     );
   }
 
   return (
     <div className="dev-panel">
       <div className="dev-panel-header">
-        <strong>Dev: Upcoming Words</strong>
+        <strong>Dev Tools</strong>
         <button className="dev-panel-close" onClick={() => setIsOpen(false)}>✕</button>
       </div>
 
-      {error && <div className="dev-panel-error">{error}</div>}
+      <div className="dev-panel-tabs">
+        <button className={tab === 'words' ? 'active' : ''} onClick={() => switchTab('words')}>Words</button>
+        <button className={tab === 'players' ? 'active' : ''} onClick={() => switchTab('players')}>Players</button>
+      </div>
 
-      {loading ? (
-        <div className="dev-panel-loading">Loading…</div>
-      ) : (
-        <table className="dev-panel-table">
-          <thead>
-            <tr>
-              <th>Date</th>
-              <th>Word 1</th>
-              <th>Word 2</th>
-              <th>Word 3</th>
-            </tr>
-          </thead>
-          <tbody>
-            {results.map(({ dayOffset, date, words }) => (
-              <tr key={dayOffset} className={dayOffset === 0 ? 'dev-panel-today' : ''}>
-                <td>{date}{dayOffset === 0 ? ' (today)' : dayOffset < 0 ? ` (${Math.abs(dayOffset)}d ago)` : ` (+${dayOffset}d)`}</td>
-                {words.map((w, i) => <td key={i}><code>{w}</code></td>)}
-              </tr>
-            ))}
-          </tbody>
-        </table>
+      {error && <div className="dev-panel-error">{error}</div>}
+      {actionMsg && <div className="dev-panel-success">{actionMsg}</div>}
+
+      {tab === 'words' && (
+        <>
+          {wordsLoading ? (
+            <div className="dev-panel-loading">Loading…</div>
+          ) : dayData ? (
+            <div className="dev-panel-day">
+              <div className="dev-panel-date">
+                {dayData.date}
+                {offset === 0 ? ' (today)' : offset < 0 ? ` (${Math.abs(offset)}d ago)` : ` (+${offset}d)`}
+              </div>
+              <div className="dev-panel-words">
+                {dayData.words.map((w, i) => (
+                  <div key={i} className="dev-panel-word">
+                    <span className="dev-panel-word-label">Word {i + 1}</span>
+                    <code>{w.toUpperCase()}</code>
+                  </div>
+                ))}
+              </div>
+            </div>
+          ) : null}
+
+          <div className="dev-panel-nav">
+            <button onClick={() => fetchDay(offset - 1)} disabled={wordsLoading}>← Prev</button>
+            <button onClick={() => fetchDay(0)} disabled={wordsLoading || offset === 0}>Today</button>
+            <button onClick={() => fetchDay(offset + 1)} disabled={wordsLoading}>Next →</button>
+          </div>
+        </>
       )}
 
-      <div className="dev-panel-nav">
-        <button onClick={() => fetch20(offset - 20)} disabled={loading}>← Prev 20</button>
-        <span>Days {offset} – {offset + 19}</span>
-        <button onClick={() => fetch20(offset + 20)} disabled={loading}>Next 20 →</button>
-      </div>
+      {tab === 'players' && (
+        <>
+          <button className="dev-panel-refresh" onClick={fetchUsers} disabled={usersLoading}>
+            {usersLoading ? 'Loading…' : '↻ Refresh'}
+          </button>
+          <div className="dev-panel-player-list">
+            {users.map(u => (
+              <div key={u.google_id} className="dev-panel-player">
+                <div className="dev-panel-player-info">
+                  <span className="dev-panel-player-name">{u.display_name || u.email}</span>
+                  {u.username && <span className="dev-panel-player-username">@{u.username}</span>}
+                </div>
+                <div className="dev-panel-player-actions">
+                  <button
+                    className="dev-panel-btn-wipe"
+                    onClick={() => setConfirmTarget({ user: u, action: 'wipe' })}
+                  >Wipe History</button>
+                  <button
+                    className="dev-panel-btn-delete"
+                    onClick={() => setConfirmTarget({ user: u, action: 'delete' })}
+                  >Delete</button>
+                </div>
+              </div>
+            ))}
+          </div>
+        </>
+      )}
+
+      {confirmTarget && (
+        <div className="dev-panel-confirm">
+          <p>
+            {confirmTarget.action === 'wipe'
+              ? `Wipe all game history for ${confirmTarget.user.display_name || confirmTarget.user.email}?`
+              : `Permanently delete account for ${confirmTarget.user.display_name || confirmTarget.user.email}? This cannot be undone.`}
+          </p>
+          <div className="dev-panel-confirm-btns">
+            <button onClick={() => setConfirmTarget(null)}>Cancel</button>
+            <button
+              className={confirmTarget.action === 'delete' ? 'dev-panel-btn-delete' : 'dev-panel-btn-wipe'}
+              onClick={confirmAction}
+            >Confirm</button>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

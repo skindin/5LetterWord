@@ -1849,16 +1849,17 @@ main {
   border: 1px solid rgba(99,102,241,0.5);
   border-radius: 12px;
   padding: 1rem;
-  width: min(95vw, 560px);
+  width: min(95vw, 380px);
   max-height: 80vh;
   overflow-y: auto;
   box-shadow: 0 8px 32px rgba(0,0,0,0.6);
+  font-size: 0.85rem;
 }
 .dev-panel-header {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  margin-bottom: 0.75rem;
+  margin-bottom: 0.6rem;
   color: #a5b4fc;
   font-size: 0.9rem;
 }
@@ -1871,8 +1872,33 @@ main {
   line-height: 1;
 }
 .dev-panel-close:hover { color: white; }
+.dev-panel-tabs {
+  display: flex;
+  gap: 4px;
+  margin-bottom: 0.75rem;
+}
+.dev-panel-tabs button {
+  flex: 1;
+  background: rgba(255,255,255,0.05);
+  border: 1px solid rgba(255,255,255,0.08);
+  color: #9ca3af;
+  border-radius: 6px;
+  padding: 0.3rem 0;
+  cursor: pointer;
+  font-size: 0.8rem;
+}
+.dev-panel-tabs button.active {
+  background: rgba(99,102,241,0.25);
+  border-color: rgba(99,102,241,0.5);
+  color: #a5b4fc;
+}
 .dev-panel-error {
   color: #f87171;
+  font-size: 0.8rem;
+  margin-bottom: 0.5rem;
+}
+.dev-panel-success {
+  color: #86efac;
   font-size: 0.8rem;
   margin-bottom: 0.5rem;
 }
@@ -1882,50 +1908,149 @@ main {
   text-align: center;
   padding: 1rem;
 }
-.dev-panel-table {
-  width: 100%;
-  border-collapse: collapse;
-  font-size: 0.82rem;
+.dev-panel-day {
+  margin-bottom: 0.75rem;
 }
-.dev-panel-table th {
-  text-align: left;
+.dev-panel-date {
   color: #6b7280;
-  font-weight: 600;
-  padding: 0.25rem 0.5rem;
-  border-bottom: 1px solid rgba(255,255,255,0.07);
+  font-size: 0.75rem;
+  margin-bottom: 0.5rem;
 }
-.dev-panel-table td {
-  padding: 0.3rem 0.5rem;
-  color: #d1d5db;
-  border-bottom: 1px solid rgba(255,255,255,0.04);
+.dev-panel-words {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
 }
-.dev-panel-table code {
-  color: #86efac;
-  font-family: monospace;
-  font-size: 0.85rem;
-  text-transform: uppercase;
-  letter-spacing: 0.05em;
-}
-.dev-panel-today td { background: rgba(99,102,241,0.12); }
-.dev-panel-nav {
+.dev-panel-word {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  margin-top: 0.75rem;
-  font-size: 0.8rem;
+  background: rgba(255,255,255,0.04);
+  border-radius: 6px;
+  padding: 0.35rem 0.6rem;
+}
+.dev-panel-word-label {
   color: #6b7280;
+  font-size: 0.75rem;
+}
+.dev-panel-word code {
+  color: #86efac;
+  font-family: monospace;
+  font-size: 1rem;
+  letter-spacing: 0.1em;
+}
+.dev-panel-nav {
+  display: flex;
+  gap: 6px;
+  margin-top: 0.5rem;
 }
 .dev-panel-nav button {
+  flex: 1;
   background: rgba(255,255,255,0.05);
   border: 1px solid rgba(255,255,255,0.1);
   color: #d1d5db;
   border-radius: 6px;
-  padding: 0.3rem 0.6rem;
+  padding: 0.3rem 0;
   cursor: pointer;
   font-size: 0.8rem;
 }
 .dev-panel-nav button:hover:not(:disabled) { background: rgba(255,255,255,0.1); }
 .dev-panel-nav button:disabled { opacity: 0.4; cursor: default; }
+.dev-panel-refresh {
+  background: rgba(255,255,255,0.05);
+  border: 1px solid rgba(255,255,255,0.1);
+  color: #9ca3af;
+  border-radius: 6px;
+  padding: 0.25rem 0.6rem;
+  cursor: pointer;
+  font-size: 0.75rem;
+  margin-bottom: 0.5rem;
+}
+.dev-panel-refresh:hover:not(:disabled) { color: white; }
+.dev-panel-player-list {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  max-height: 320px;
+  overflow-y: auto;
+}
+.dev-panel-player {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 8px;
+  background: rgba(255,255,255,0.04);
+  border-radius: 8px;
+  padding: 0.4rem 0.6rem;
+}
+.dev-panel-player-info {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+.dev-panel-player-name {
+  color: #d1d5db;
+  font-size: 0.8rem;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.dev-panel-player-username {
+  color: #6b7280;
+  font-size: 0.72rem;
+}
+.dev-panel-player-actions {
+  display: flex;
+  gap: 4px;
+  flex-shrink: 0;
+}
+.dev-panel-btn-wipe {
+  background: rgba(234,179,8,0.15);
+  border: 1px solid rgba(234,179,8,0.3);
+  color: #fbbf24;
+  border-radius: 5px;
+  padding: 0.2rem 0.45rem;
+  cursor: pointer;
+  font-size: 0.72rem;
+}
+.dev-panel-btn-wipe:hover { background: rgba(234,179,8,0.25); }
+.dev-panel-btn-delete {
+  background: rgba(239,68,68,0.15);
+  border: 1px solid rgba(239,68,68,0.3);
+  color: #f87171;
+  border-radius: 5px;
+  padding: 0.2rem 0.45rem;
+  cursor: pointer;
+  font-size: 0.72rem;
+}
+.dev-panel-btn-delete:hover { background: rgba(239,68,68,0.25); }
+.dev-panel-confirm {
+  margin-top: 0.75rem;
+  background: rgba(255,255,255,0.05);
+  border: 1px solid rgba(255,255,255,0.1);
+  border-radius: 8px;
+  padding: 0.75rem;
+}
+.dev-panel-confirm p {
+  color: #d1d5db;
+  font-size: 0.8rem;
+  margin: 0 0 0.6rem;
+}
+.dev-panel-confirm-btns {
+  display: flex;
+  gap: 6px;
+}
+.dev-panel-confirm-btns button:first-child {
+  flex: 1;
+  background: rgba(255,255,255,0.05);
+  border: 1px solid rgba(255,255,255,0.1);
+  color: #9ca3af;
+  border-radius: 6px;
+  padding: 0.3rem 0;
+  cursor: pointer;
+  font-size: 0.8rem;
+}
+.dev-panel-confirm-btns button:first-child:hover { color: white; }
 
 
 
