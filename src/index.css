@@ -1,7 +1,17 @@
 @import url('https://fonts.googleapis.com/css2?family=Outfit:wght@400;600;800&display=swap');
 
-html {
+html, body {
   background-color: #0f1115; /* var(--bg-color) value to prevent white gutters on bounce scroll */
+  color: var(--text-color);
+  margin: 0;
+  padding: 0;
+  width: 100%;
+  height: 100%;
+  height: 100dvh;
+  overflow: hidden; /* Disable page scroll bouncing entirely */
+  overscroll-behavior: none; /* Disable elastic scroll bounce */
+  user-select: none;
+  position: fixed; /* Lock iOS elastic bouncing and address bar resizing */
 }
 
 :root {
@@ -39,14 +49,9 @@ html {
 }
 
 body {
-  background-color: var(--bg-color);
-  color: var(--text-color);
   display: flex;
   justify-content: center;
   align-items: center;
-  min-height: 100vh;
-  margin: 0;
-  user-select: none;
 }
 
 #root {
@@ -54,10 +59,13 @@ body {
   max-width: 500px;
   display: flex;
   flex-direction: column;
-  height: 100vh;
+  height: 100%;
   height: 100dvh;
   padding: 1rem;
+  padding-top: calc(1rem + env(safe-area-inset-top));
   padding-bottom: calc(1rem + env(safe-area-inset-bottom));
+  overflow: hidden; /* Lock the root container */
+  overscroll-behavior: none; /* Prevent elastic bounce scrolling */
 }
 
 /* Header */
@@ -656,6 +664,8 @@ main {
   animation: slideUp 0.3s ease-out;
   padding-bottom: 3rem;
   overflow-y: auto;
+  overscroll-behavior-y: contain; /* Contain scrolling within the container */
+  -webkit-overflow-scrolling: touch; /* Smooth inertial scrolling on iOS */
   max-height: 75vh;
 }
 
@@ -1213,6 +1223,7 @@ main {
 @media (max-height: 780px), (max-width: 480px) {
   #root {
     padding: 0.75rem;
+    padding-top: calc(0.75rem + env(safe-area-inset-top));
     padding-bottom: calc(0.75rem + env(safe-area-inset-bottom));
   }
   header {
@@ -1243,6 +1254,7 @@ main {
 @media (max-height: 660px) {
   #root {
     padding: 0.5rem;
+    padding-top: calc(0.5rem + env(safe-area-inset-top));
     padding-bottom: calc(0.5rem + env(safe-area-inset-bottom));
   }
   header {
