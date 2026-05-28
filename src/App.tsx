@@ -186,11 +186,13 @@ export default function App() {
   }, [onKeyPress]);
 
   let formattedDateStr = '';
+  let wordNumStr = '';
   if (rawDate) {
     const dateObj = new Date(rawDate + 'T12:00:00Z');
     formattedDateStr = dateObj.toLocaleDateString('en-US', {
       month: 'long', day: 'numeric', year: 'numeric'
-    }).toLowerCase() + `, word #${viewingIndex + 1}`;
+    }).toLowerCase();
+    wordNumStr = `word #${viewingIndex + 1}`;
   }
 
   const isLeftDisabled = viewingIndex === 0;
@@ -228,7 +230,7 @@ export default function App() {
       <Header gamesWon={gamesWon} gamesPlayed={gamesPlayed} />
       
       <main>
-        {formattedDateStr && <div className="game-header">{formattedDateStr} - {countdown} until next word list</div>}
+        {formattedDateStr && <div className="game-header">{formattedDateStr}, <strong>{wordNumStr}</strong> - {countdown} until next word list</div>}
         
         <div className="grid-nav-wrapper">
           <button 
