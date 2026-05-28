@@ -1,4 +1,5 @@
 import React from 'react';
+import { getGuessStatuses } from '../utils/gameLogic';
 
 interface GridProps {
   guesses: string[];
@@ -10,32 +11,19 @@ interface GridProps {
 }
 
 export const Grid: React.FC<GridProps> = ({ guesses, currentGuess, targetWord, currentRow, gameStatus, isShaking }) => {
-  const getLetterStatus = (letter: string, index: number) => {
-    if (targetWord[index] === letter) return 'correct';
-    if (targetWord.includes(letter)) {
-      // Handle multiples (simplified Wordle logic for presence)
-      // For true wordle logic, we need to count occurrences, but for a knockoff, simple presence is okay
-      return 'present';
-    }
-    return 'absent';
-  };
-
-  return (
-    <div className="grid-container">
-      <div className="grid">
         {/* Completed Rows */}
-        {guesses.map((guess, i) => (
-          <div key={i} className="row">
-            {guess.split('').map((letter, j) => {
-              const status = getLetterStatus(letter, j);
-              return (
-                <div key={j} className={`tile filled flip ${status}`} style={{ animationDelay: `${j * 0.1}s` }}>
+        {guesses.map((guess, i) => {
+          const statuses = getGuessStatuses(guess, targetWord);
+          return (
+            <div key={i} className="row">
+              {guess.split('').map((letter, j) => (
+                <div key={j} className={`tile filled flip ${statuses[j]}`} style={{ animationDelay: `${j * 0.1}s` }}>
                   {letter}
                 </div>
-              );
-            })}
-          </div>
-        ))}
+              ))}
+            </div>
+          );
+        })}
 
         {/* Current Row */}
         {currentRow < 6 && gameStatus === 'playing' && (

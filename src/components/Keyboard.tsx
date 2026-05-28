@@ -1,4 +1,5 @@
 import React from 'react';
+import { getGuessStatuses } from '../utils/gameLogic';
 
 interface KeyboardProps {
   onKeyPress: (key: string) => void;
@@ -14,21 +15,19 @@ export const Keyboard: React.FC<KeyboardProps> = ({ onKeyPress, guesses, targetW
   ];
 
   const getKeyStatus = (key: string) => {
-    // Determine the highest precedence status for a key across all guesses
-    // correct > present > absent > empty
-    
     let isCorrect = false;
     let isPresent = false;
     let isAbsent = false;
 
     for (const guess of guesses) {
+      const statuses = getGuessStatuses(guess, targetWord);
       for (let i = 0; i < 5; i++) {
         if (guess[i] === key) {
-          if (targetWord[i] === key) {
+          if (statuses[i] === 'correct') {
             isCorrect = true;
-          } else if (targetWord.includes(key)) {
+          } else if (statuses[i] === 'present') {
             isPresent = true;
-          } else {
+          } else if (statuses[i] === 'absent') {
             isAbsent = true;
           }
         }
