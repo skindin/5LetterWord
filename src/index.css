@@ -9,8 +9,8 @@
   --tile-border: #2a2e38;
   --tile-filled: #2a2e38;
   --tile-correct: #10b981;  /* Vibrant Emerald */
-  --tile-present: #f59e0b;  /* Vibrant Amber */
-  --tile-absent: #374151;   /* Slate Gray */
+  --tile-present: #eab308;  /* Yellow */
+  --tile-absent: #ef4444;   /* Red */
 
   --key-bg: #2a2e38;
   --key-hover: #374151;
