@@ -179,17 +179,18 @@ export default function App() {
       <Header gamesWon={gamesWon} gamesPlayed={gamesPlayed} />
       
       <main>
+        {formattedDateStr && <div className="game-header">{formattedDateStr}</div>}
+        
         <div className="grid-nav-wrapper">
           <button 
             className={`nav-button ${isLeftDisabled ? 'disabled' : ''}`} 
             onClick={handlePrev}
             disabled={isLeftDisabled}
           >
-            &#9664;
+            &#10094;
           </button>
           
           <div className="grid-content">
-            {formattedDateStr && <div className="game-header">{formattedDateStr}</div>}
             <Grid 
               guesses={guesses}
               currentGuess={currentGuess}
@@ -205,7 +206,7 @@ export default function App() {
             onClick={handleNext}
             disabled={isRightDisabled}
           >
-            &#9654;
+            &#10095;
           </button>
         </div>
         
