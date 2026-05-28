@@ -10,6 +10,50 @@ type GameState = {
   date: string;
 };
 
+function useCountdownToMidnightCT() {
+  const [timeLeft, setTimeLeft] = useState('');
+
+  useEffect(() => {
+    const update = () => {
+      const now = new Date();
+      const formatter = new Intl.DateTimeFormat('en-US', {
+        timeZone: 'America/Chicago',
+        hour: 'numeric', minute: 'numeric', second: 'numeric',
+        hour12: false
+      });
+      const parts = formatter.formatToParts(now);
+      const hStr = parts.find(p => p.type === 'hour')?.value || '0';
+      const mStr = parts.find(p => p.type === 'minute')?.value || '0';
+      const sStr = parts.find(p => p.type === 'second')?.value || '0';
+
+      let hour = parseInt(hStr, 10);
+      if (hour === 24) hour = 0;
+
+      const minute = parseInt(mStr, 10);
+      const second = parseInt(sStr, 10);
+
+      const secondsPassed = hour * 3600 + minute * 60 + second;
+      const secondsInDay = 24 * 3600;
+      let secondsRemaining = secondsInDay - secondsPassed;
+      if (secondsRemaining === secondsInDay) secondsRemaining = 0;
+
+      const hRem = Math.floor(secondsRemaining / 3600);
+      secondsRemaining %= 3600;
+      const mRem = Math.floor(secondsRemaining / 60);
+      const sRem = secondsRemaining % 60;
+
+      const pad = (n: number) => n.toString().padStart(2, '0');
+      setTimeLeft(`${pad(hRem)}:${pad(mRem)}:${pad(sRem)}`);
+    };
+
+    update();
+    const interval = setInterval(update, 1000);
+    return () => clearInterval(interval);
+  }, []);
+
+  return timeLeft;
+}
+
 export default function App() {
   const [gamesWon, setGamesWon] = useState(0);
   const [viewingIndex, setViewingIndex] = useState(0);
@@ -20,6 +64,8 @@ export default function App() {
   const [message, setMessage] = useState('');
   const [isShaking, setIsShaking] = useState(false);
   const [isFetching, setIsFetching] = useState(false);
+  
+  const countdown = useCountdownToMidnightCT();
 
   // Fetch valid words on initial load
   useEffect(() => {
@@ -182,7 +228,7 @@ export default function App() {
       <Header gamesWon={gamesWon} gamesPlayed={gamesPlayed} />
       
       <main>
-        {formattedDateStr && <div className="game-header">{formattedDateStr}</div>}
+        {formattedDateStr && <div className="game-header">{formattedDateStr} - {countdown} until next word list</div>}
         
         <div className="grid-nav-wrapper">
           <button 
