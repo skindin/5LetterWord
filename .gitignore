@@ -12,6 +12,9 @@ dist
 dist-ssr
 *.local
 
+# Word frequency source data (large, not needed in repo — re-download to regenerate targetWords.json)
+server/freq_raw.txt
+
 # Editor directories and files
 .vscode/*
 !.vscode/extensions.json

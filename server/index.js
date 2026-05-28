@@ -270,9 +270,13 @@ app.post('/api/friends/list', async (req, res) => {
   }
 });
 
-// Load our generated 2000 target words
-const targetWordsPath = path.join(__dirname, 'words.json');
+// Common words used as daily answers (top-2000 by frequency)
+const targetWordsPath = path.join(__dirname, 'targetWords.json');
 const targetWords = JSON.parse(fs.readFileSync(targetWordsPath, 'utf8'));
+
+// Full word list used to validate guesses
+const validWordsPath = path.join(__dirname, 'words.json');
+const validWords = JSON.parse(fs.readFileSync(validWordsPath, 'utf8'));
 
 // Provide a simple PRNG
 function mulberry32(a) {
@@ -322,7 +326,7 @@ app.get('/api/word', (req, res) => {
 // To keep the network payload small, we'll validate on the server or send all targetWords.
 // Actually, let's just send the whole targetWords list so the client can validate guesses against it.
 app.get('/api/valid-words', (req, res) => {
-    res.json(targetWords);
+    res.json(validWords);
 });
 
 // Serve static frontend files
