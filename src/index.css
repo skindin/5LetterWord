@@ -51,7 +51,9 @@ body {
   display: flex;
   flex-direction: column;
   height: 100vh;
+  height: 100dvh;
   padding: 1rem;
+  padding-bottom: calc(1rem + env(safe-area-inset-bottom));
 }
 
 /* Header */
@@ -1202,3 +1204,68 @@ main {
   background: rgba(255, 255, 255, 0.1);
   color: white;
 }
+
+/* Responsive adjustments for smaller screen heights/widths to prevent UI clipping/overlap */
+@media (max-height: 780px), (max-width: 480px) {
+  #root {
+    padding: 0.75rem;
+    padding-bottom: calc(0.75rem + env(safe-area-inset-bottom));
+  }
+  header {
+    margin-bottom: 1rem;
+    padding-bottom: 0.5rem;
+  }
+  .tab-navigation {
+    margin-bottom: 1rem;
+  }
+  .grid-nav-wrapper {
+    margin-bottom: 1.5rem;
+    gap: 8px;
+  }
+  .tile {
+    width: 50px;
+    height: 50px;
+    font-size: 1.6rem;
+  }
+  .key {
+    padding: 12px 6px;
+    font-size: 0.95rem;
+  }
+  .key.wide {
+    font-size: 0.8rem;
+  }
+}
+
+@media (max-height: 660px) {
+  #root {
+    padding: 0.5rem;
+    padding-bottom: calc(0.5rem + env(safe-area-inset-bottom));
+  }
+  header {
+    margin-bottom: 0.5rem;
+  }
+  .tab-navigation {
+    margin-bottom: 0.75rem;
+  }
+  .grid-nav-wrapper {
+    margin-bottom: 1rem;
+  }
+  .tile {
+    width: 42px;
+    height: 42px;
+    font-size: 1.4rem;
+    border-width: 1.5px;
+  }
+  .key {
+    padding: 10px 4px;
+    font-size: 0.85rem;
+  }
+  .key.wide {
+    font-size: 0.7rem;
+  }
+  .legend {
+    margin-bottom: 8px;
+    font-size: 0.8rem;
+  }
+}
+
