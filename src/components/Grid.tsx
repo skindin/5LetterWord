@@ -11,6 +11,9 @@ interface GridProps {
 }
 
 export const Grid: React.FC<GridProps> = ({ guesses, currentGuess, targetWord, currentRow, gameStatus, isShaking }) => {
+  return (
+    <div className="grid-container">
+      <div className="grid">
         {/* Completed Rows */}
         {guesses.map((guess, i) => {
           const statuses = getGuessStatuses(guess, targetWord);
