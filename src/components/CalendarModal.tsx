@@ -16,6 +16,7 @@ interface CalendarModalProps {
   isFriendMode: boolean;
   friendName?: string;
   onJumpToLevel?: (index: number) => void;
+  onViewFriendBoard?: (level: { guesses: string[]; targetWord: string; status: 'won' | 'lost' | 'playing'; index: number }) => void;
 }
 
 const MONTH_NAMES = [
@@ -31,7 +32,8 @@ export const CalendarModal: React.FC<CalendarModalProps> = ({
   currentDate,
   isFriendMode,
   friendName,
-  onJumpToLevel
+  onJumpToLevel,
+  onViewFriendBoard,
 }) => {
   if (!isOpen) return null;
 
@@ -231,9 +233,8 @@ export const CalendarModal: React.FC<CalendarModalProps> = ({
                       </div>
                     )}
 
-                    {/* Jump button only active in Self Mode */}
                     {!isFriendMode && onJumpToLevel && (
-                      <button 
+                      <button
                         className="jump-btn"
                         onClick={() => {
                           onJumpToLevel(level.index);
@@ -241,6 +242,20 @@ export const CalendarModal: React.FC<CalendarModalProps> = ({
                         }}
                       >
                         play/review level
+                      </button>
+                    )}
+
+                    {isFriendMode && isUnlocked && level.targetWord && level.guesses.length > 0 && onViewFriendBoard && (
+                      <button
+                        className="jump-btn view-board-btn"
+                        onClick={() => onViewFriendBoard({
+                          guesses: level.guesses,
+                          targetWord: level.targetWord!,
+                          status: level.status,
+                          index: level.index,
+                        })}
+                      >
+                        view board
                       </button>
                     )}
                   </div>

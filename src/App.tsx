@@ -9,6 +9,7 @@ import { QRCodeModal } from './components/QRCodeModal';
 import { AcceptFriendModal } from './components/AcceptFriendModal';
 import { CalendarModal } from './components/CalendarModal';
 import DevPanel from './components/DevPanel';
+import BoardViewModal from './components/BoardViewModal';
 
 type GameState = {
   targetWord: string;
@@ -83,6 +84,9 @@ export default function App() {
   const [username, setUsername] = useState<string | null>(null);
   const [userProfile, setUserProfile] = useState<{ name: string; picture: string } | null>(null);
   const [isDev, setIsDev] = useState(false);
+  const [friendBoardView, setFriendBoardView] = useState<{
+    guesses: string[]; targetWord: string; status: 'won' | 'lost' | 'playing'; index: number;
+  } | null>(null);
   const [currentView, setCurrentView] = useState<'game' | 'social'>('game');
   const [isQRCodeOpen, setIsQRCodeOpen] = useState(false);
   const [friendToAccept, setFriendToAccept] = useState<string | null>(null);
@@ -588,6 +592,17 @@ export default function App() {
           setViewingIndex(index);
           setCurrentView('game');
         }}
+        onViewFriendBoard={(level) => setFriendBoardView(level)}
+      />
+
+      <BoardViewModal
+        isOpen={friendBoardView !== null}
+        onClose={() => setFriendBoardView(null)}
+        guesses={friendBoardView?.guesses ?? []}
+        targetWord={friendBoardView?.targetWord ?? ''}
+        status={friendBoardView?.status ?? 'playing'}
+        friendName={calendarTarget !== 'self' && calendarTarget !== null ? calendarTarget.display_name : ''}
+        levelIndex={friendBoardView?.index ?? 0}
       />
 
       <AcceptFriendModal 

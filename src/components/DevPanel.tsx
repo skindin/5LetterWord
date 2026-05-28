@@ -24,6 +24,7 @@ export default function DevPanel({ token }: Props) {
 
   // Players tab
   const [users, setUsers] = useState<User[]>([]);
+  const [playerSearch, setPlayerSearch] = useState('');
   const [usersLoading, setUsersLoading] = useState(false);
   const [actionMsg, setActionMsg] = useState<string | null>(null);
   const [confirmTarget, setConfirmTarget] = useState<{ user: User; action: 'wipe' | 'delete' } | null>(null);
@@ -152,11 +153,23 @@ export default function DevPanel({ token }: Props) {
 
       {tab === 'players' && (
         <>
-          <button className="dev-panel-refresh" onClick={fetchUsers} disabled={usersLoading}>
-            {usersLoading ? 'Loading…' : '↻ Refresh'}
-          </button>
+          <div className="dev-panel-player-toolbar">
+            <input
+              className="dev-panel-search"
+              type="text"
+              placeholder="search players…"
+              value={playerSearch}
+              onChange={e => setPlayerSearch(e.target.value)}
+            />
+            <button className="dev-panel-refresh" onClick={fetchUsers} disabled={usersLoading}>
+              {usersLoading ? '…' : '↻'}
+            </button>
+          </div>
           <div className="dev-panel-player-list">
-            {users.map(u => (
+            {users.filter(u => {
+              const q = playerSearch.toLowerCase();
+              return !q || (u.display_name || '').toLowerCase().includes(q) || (u.username || '').toLowerCase().includes(q) || u.email.toLowerCase().includes(q);
+            }).map(u => (
               <div key={u.google_id} className="dev-panel-player">
                 <div className="dev-panel-player-info">
                   <span className="dev-panel-player-name">{u.display_name || u.email}</span>
