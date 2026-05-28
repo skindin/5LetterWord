@@ -20,10 +20,10 @@ app.use(express.json());
 const { Pool } = pg;
 let pool = null;
 if (process.env.DATABASE_URL) {
+  console.log("Found DATABASE_URL, attempting to connect to database...");
   pool = new Pool({
-    connectionString: process.env.DATABASE_URL,
-    // Railway Postgres usually requires ssl off or rejectUnauthorized false for external
-    ssl: process.env.NODE_ENV === 'production' ? { rejectUnauthorized: false } : false
+    connectionString: process.env.DATABASE_URL
+    // Removed strict SSL config as Railway's internal networks often reject SSL connections
   });
   
   pool.query(`
@@ -32,7 +32,11 @@ if (process.env.DATABASE_URL) {
       email TEXT,
       history JSONB DEFAULT '{}'
     )
-  `).catch(err => console.error("DB init error:", err));
+  `).then(() => {
+    console.log("Database tables verified and ready.");
+  }).catch(err => {
+    console.error("CRITICAL DB INIT ERROR. Connection failed:", err.message);
+  });
 } else {
   console.warn("DATABASE_URL not set. Database features will not work.");
 }
