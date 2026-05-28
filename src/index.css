@@ -110,12 +110,47 @@ main {
   width: 100%;
 }
 
-/* Grid */
-.grid-container {
+/* Grid Navigation Wrapper */
+.grid-nav-wrapper {
   display: flex;
-  justify-content: center;
   align-items: center;
+  justify-content: center;
+  gap: 16px;
   margin-bottom: 32px;
+  width: 100%;
+}
+
+.nav-button {
+  background: none;
+  border: none;
+  color: #fff;
+  font-size: 2rem;
+  cursor: pointer;
+  padding: 10px;
+  transition: opacity 0.2s;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.nav-button.disabled {
+  opacity: 0.2;
+  cursor: not-allowed;
+}
+
+.grid-content {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 12px;
+}
+
+.game-header {
+  font-size: 0.95rem;
+  color: #a1a1aa;
+  font-weight: 500;
+  text-align: center;
+  margin-bottom: 4px;
 }
 
 .grid {
