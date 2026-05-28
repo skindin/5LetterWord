@@ -8,6 +8,7 @@ import { SocialPage } from './components/SocialPage';
 import { QRCodeModal } from './components/QRCodeModal';
 import { AcceptFriendModal } from './components/AcceptFriendModal';
 import { CalendarModal } from './components/CalendarModal';
+import DevPanel from './components/DevPanel';
 
 type GameState = {
   targetWord: string;
@@ -81,6 +82,7 @@ export default function App() {
   // Social & Username States
   const [username, setUsername] = useState<string | null>(null);
   const [userProfile, setUserProfile] = useState<{ name: string; picture: string } | null>(null);
+  const [isDev, setIsDev] = useState(false);
   const [currentView, setCurrentView] = useState<'game' | 'social'>('game');
   const [isQRCodeOpen, setIsQRCodeOpen] = useState(false);
   const [friendToAccept, setFriendToAccept] = useState<string | null>(null);
@@ -140,6 +142,7 @@ export default function App() {
           setUserProfile(data.user);
           localStorage.setItem('userProfile', JSON.stringify(data.user));
         }
+        setIsDev(!!data.isDev);
         setIsAuthChecking(false);
       })
       .catch(err => {
@@ -429,6 +432,7 @@ export default function App() {
                 setUserProfile(data.user);
                 localStorage.setItem('userProfile', JSON.stringify(data.user));
               }
+              setIsDev(!!data.isDev);
             }).catch(console.error);
           }}
           onError={() => {
@@ -593,8 +597,10 @@ export default function App() {
         onClose={() => {
           setIsAcceptFriendOpen(false);
           setFriendToAccept(null);
-        }} 
+        }}
       />
+
+      {isDev && token && <DevPanel token={token} />}
     </>
   );
 }

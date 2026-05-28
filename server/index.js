@@ -37,6 +37,7 @@ if (process.env.DATABASE_URL) {
     await pool.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS username TEXT UNIQUE`);
     await pool.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS display_name TEXT`);
     await pool.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS picture TEXT`);
+    await pool.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS is_dev BOOLEAN DEFAULT FALSE`);
     
     // Create relationship table for mutual friendships
     await pool.query(`
@@ -84,14 +85,15 @@ app.post('/api/auth', async (req, res) => {
         email = EXCLUDED.email,
         display_name = EXCLUDED.display_name,
         picture = EXCLUDED.picture
-      RETURNING history, username
+      RETURNING history, username, is_dev
     `, [payload.sub, payload.email, payload.name, payload.picture]);
-    
+
     const row = result.rows[0];
-    res.json({ 
-      history: row.history, 
+    res.json({
+      history: row.history,
       username: row.username,
-      user: { name: payload.name, picture: payload.picture } 
+      isDev: row.is_dev,
+      user: { name: payload.name, picture: payload.picture }
     });
   } catch (e) {
     console.error(e);
@@ -327,6 +329,45 @@ app.get('/api/word', (req, res) => {
 // Actually, let's just send the whole targetWords list so the client can validate guesses against it.
 app.get('/api/valid-words', (req, res) => {
     res.json(validWords);
+});
+
+// Dev-only: preview upcoming daily words (20 at a time starting from a day offset)
+app.post('/api/dev/words', async (req, res) => {
+    if (!pool) return res.status(500).json({ error: 'Database not configured' });
+
+    const payload = await verifyGoogleToken(req.body.token);
+    if (!payload) return res.status(401).json({ error: 'Invalid token' });
+
+    const userResult = await pool.query(
+        'SELECT is_dev FROM users WHERE google_id = $1', [payload.sub]
+    );
+    if (!userResult.rows[0]?.is_dev) return res.status(403).json({ error: 'Not authorized' });
+
+    const PAGE_SIZE = 20;
+    const offset = parseInt(req.body.offset) || 0;
+
+    // Build a list of PAGE_SIZE days starting from today + offset
+    const { formatInTimeZone: fmt } = await import('date-fns-tz');
+    const results = [];
+    for (let i = 0; i < PAGE_SIZE; i++) {
+        const dayOffset = offset + i;
+        const date = new Date();
+        date.setDate(date.getDate() + dayOffset);
+        const dateStr = fmt(date, 'America/Chicago', 'yyyy-MM-dd');
+
+        // Same word-per-index logic as /api/word — generate all word slots for that date
+        const wordSlots = [];
+        for (let wordIndex = 0; wordIndex < 3; wordIndex++) {
+            const seedString = `${dateStr}-${wordIndex}`;
+            const seedNumber = hashString(seedString);
+            const rng = mulberry32(seedNumber);
+            const randIndex = Math.floor(rng() * targetWords.length);
+            wordSlots.push(targetWords[randIndex]);
+        }
+        results.push({ dayOffset, date: dateStr, words: wordSlots });
+    }
+
+    res.json({ offset, results });
 });
 
 // Serve static frontend files

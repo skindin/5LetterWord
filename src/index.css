@@ -1823,5 +1823,109 @@ main {
   border-color: rgba(255,255,255,0.2);
 }
 
+/* Dev Panel */
+.dev-panel-toggle {
+  position: fixed;
+  bottom: 1rem;
+  left: 1rem;
+  z-index: 1000;
+  background: rgba(99,102,241,0.85);
+  color: white;
+  border: none;
+  border-radius: 8px;
+  padding: 0.4rem 0.75rem;
+  font-size: 0.8rem;
+  cursor: pointer;
+  opacity: 0.7;
+}
+.dev-panel-toggle:hover { opacity: 1; }
+
+.dev-panel {
+  position: fixed;
+  bottom: 1rem;
+  left: 1rem;
+  z-index: 1000;
+  background: #1a1b26;
+  border: 1px solid rgba(99,102,241,0.5);
+  border-radius: 12px;
+  padding: 1rem;
+  width: min(95vw, 560px);
+  max-height: 80vh;
+  overflow-y: auto;
+  box-shadow: 0 8px 32px rgba(0,0,0,0.6);
+}
+.dev-panel-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 0.75rem;
+  color: #a5b4fc;
+  font-size: 0.9rem;
+}
+.dev-panel-close {
+  background: none;
+  border: none;
+  color: #6b7280;
+  cursor: pointer;
+  font-size: 1rem;
+  line-height: 1;
+}
+.dev-panel-close:hover { color: white; }
+.dev-panel-error {
+  color: #f87171;
+  font-size: 0.8rem;
+  margin-bottom: 0.5rem;
+}
+.dev-panel-loading {
+  color: #6b7280;
+  font-size: 0.85rem;
+  text-align: center;
+  padding: 1rem;
+}
+.dev-panel-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.82rem;
+}
+.dev-panel-table th {
+  text-align: left;
+  color: #6b7280;
+  font-weight: 600;
+  padding: 0.25rem 0.5rem;
+  border-bottom: 1px solid rgba(255,255,255,0.07);
+}
+.dev-panel-table td {
+  padding: 0.3rem 0.5rem;
+  color: #d1d5db;
+  border-bottom: 1px solid rgba(255,255,255,0.04);
+}
+.dev-panel-table code {
+  color: #86efac;
+  font-family: monospace;
+  font-size: 0.85rem;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+.dev-panel-today td { background: rgba(99,102,241,0.12); }
+.dev-panel-nav {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-top: 0.75rem;
+  font-size: 0.8rem;
+  color: #6b7280;
+}
+.dev-panel-nav button {
+  background: rgba(255,255,255,0.05);
+  border: 1px solid rgba(255,255,255,0.1);
+  color: #d1d5db;
+  border-radius: 6px;
+  padding: 0.3rem 0.6rem;
+  cursor: pointer;
+  font-size: 0.8rem;
+}
+.dev-panel-nav button:hover:not(:disabled) { background: rgba(255,255,255,0.1); }
+.dev-panel-nav button:disabled { opacity: 0.4; cursor: default; }
+
 
 
