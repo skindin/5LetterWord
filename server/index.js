@@ -1,9 +1,12 @@
+import 'dotenv/config';
 import express from 'express';
 import cors from 'cors';
 import { formatInTimeZone } from 'date-fns-tz';
 import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
+import pg from 'pg';
+import { OAuth2Client } from 'google-auth-library';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -13,6 +16,81 @@ const PORT = process.env.PORT || 3000;
 
 app.use(cors());
 app.use(express.json());
+
+const { Pool } = pg;
+let pool = null;
+if (process.env.DATABASE_URL) {
+  pool = new Pool({
+    connectionString: process.env.DATABASE_URL,
+    // Railway Postgres usually requires ssl off or rejectUnauthorized false for external
+    ssl: process.env.NODE_ENV === 'production' ? { rejectUnauthorized: false } : false
+  });
+  
+  pool.query(`
+    CREATE TABLE IF NOT EXISTS users (
+      google_id TEXT PRIMARY KEY,
+      email TEXT,
+      history JSONB DEFAULT '{}'
+    )
+  `).catch(err => console.error("DB init error:", err));
+} else {
+  console.warn("DATABASE_URL not set. Database features will not work.");
+}
+
+const googleClient = new OAuth2Client(process.env.VITE_GOOGLE_CLIENT_ID);
+
+async function verifyGoogleToken(token) {
+  if (!token) return null;
+  try {
+    const ticket = await googleClient.verifyIdToken({
+      idToken: token,
+      audience: process.env.VITE_GOOGLE_CLIENT_ID,
+    });
+    return ticket.getPayload();
+  } catch (e) {
+    console.error("Google token verification failed:", e);
+    return null;
+  }
+}
+
+app.post('/api/auth', async (req, res) => {
+  if (!pool) return res.status(500).json({ error: "Database not configured" });
+  
+  const payload = await verifyGoogleToken(req.body.token);
+  if (!payload) return res.status(401).json({ error: "Invalid token" });
+
+  try {
+    const result = await pool.query(`
+      INSERT INTO users (google_id, email, history)
+      VALUES ($1, $2, '{}')
+      ON CONFLICT (google_id) DO UPDATE SET email = EXCLUDED.email
+      RETURNING history
+    `, [payload.sub, payload.email]);
+    
+    res.json({ history: result.rows[0].history, user: { name: payload.name, picture: payload.picture } });
+  } catch (e) {
+    console.error(e);
+    res.status(500).json({ error: "Database error" });
+  }
+});
+
+app.post('/api/sync', async (req, res) => {
+  if (!pool) return res.status(500).json({ error: "Database not configured" });
+  
+  const payload = await verifyGoogleToken(req.body.token);
+  if (!payload) return res.status(401).json({ error: "Invalid token" });
+
+  try {
+    await pool.query(`
+      UPDATE users SET history = $1 WHERE google_id = $2
+    `, [JSON.stringify(req.body.history), payload.sub]);
+    
+    res.json({ success: true });
+  } catch (e) {
+    console.error(e);
+    res.status(500).json({ error: "Database error" });
+  }
+});
 
 // Load our generated 2000 target words
 const targetWordsPath = path.join(__dirname, 'words.json');

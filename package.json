@@ -14,10 +14,14 @@
     "start": "node server/index.js"
   },
   "dependencies": {
+    "@react-oauth/google": "^0.13.5",
     "cors": "^2.8.6",
     "date-fns": "^4.3.0",
     "date-fns-tz": "^3.2.0",
+    "dotenv": "^17.4.2",
     "express": "^5.2.1",
+    "google-auth-library": "^10.6.2",
+    "pg": "^8.21.0",
     "react": "^19.2.6",
     "react-dom": "^19.2.6",
     "word-list": "^4.1.0"
@@ -27,6 +31,7 @@
     "@types/cors": "^2.8.19",
     "@types/express": "^5.0.6",
     "@types/node": "^24.12.3",
+    "@types/pg": "^8.20.0",
     "@types/react": "^19.2.14",
     "@types/react-dom": "^19.2.3",
     "@vitejs/plugin-react": "^6.0.1",

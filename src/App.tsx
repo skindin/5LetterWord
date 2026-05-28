@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
+import { GoogleLogin } from '@react-oauth/google';
 import { Header } from './components/Header';
 import { Grid } from './components/Grid';
 import { Keyboard } from './components/Keyboard';
@@ -64,6 +65,7 @@ export default function App() {
   const [message, setMessage] = useState('');
   const [isShaking, setIsShaking] = useState(false);
   const [isFetching, setIsFetching] = useState(false);
+  const [token, setToken] = useState<string | null>(null);
   
   const countdown = useCountdownToMidnightCT();
 
@@ -118,14 +120,26 @@ export default function App() {
   }
 
   const updateCurrentGame = useCallback((updates: Partial<GameState>) => {
-    setHistory(prev => ({
-      ...prev,
-      [viewingIndex]: {
-        ...prev[viewingIndex],
-        ...updates
+    setHistory(prev => {
+      const newHistory = {
+        ...prev,
+        [viewingIndex]: {
+          ...prev[viewingIndex],
+          ...updates
+        }
+      };
+
+      if (token) {
+        fetch('/api/sync', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ token, history: newHistory })
+        }).catch(console.error);
       }
-    }));
-  }, [viewingIndex]);
+
+      return newHistory;
+    });
+  }, [viewingIndex, token]);
 
   const onKeyPress = useCallback((key: string) => {
     if (gameStatus !== 'playing' || isFetching) return;
@@ -220,6 +234,39 @@ export default function App() {
   // We only count actual games finished in the viewingIndex logic, but the user requested 'gamesPlayed' at the top.
   // We can calculate games played by counting non-playing games in history, or just tracking the max index visited.
   const gamesPlayed = Object.values(history).filter(g => g.status !== 'playing').length;
+
+  if (!token) {
+    return (
+      <div className="login-screen">
+        <h1 style={{color: 'white', marginBottom: '24px'}}>Sign in to play</h1>
+        <GoogleLogin
+          onSuccess={credentialResponse => {
+            setToken(credentialResponse.credential!);
+            fetch('/api/auth', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ token: credentialResponse.credential })
+            })
+            .then(r => r.json())
+            .then(data => {
+              if (data.history) {
+                setHistory(data.history);
+                const max = Math.max(0, ...Object.keys(data.history).map(Number));
+                setViewingIndex(max);
+                
+                // Count wins
+                const wins = Object.values(data.history).filter((g: any) => g.status === 'won').length;
+                setGamesWon(wins);
+              }
+            }).catch(console.error);
+          }}
+          onError={() => {
+            console.log('Login Failed');
+          }}
+        />
+      </div>
+    );
+  }
 
   return (
     <>
