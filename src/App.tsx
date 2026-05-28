@@ -7,6 +7,7 @@ import { StatsModal } from './components/StatsModal';
 import { SocialPage } from './components/SocialPage';
 import { QRCodeModal } from './components/QRCodeModal';
 import { AcceptFriendModal } from './components/AcceptFriendModal';
+import { CalendarModal } from './components/CalendarModal';
 
 type GameState = {
   targetWord: string;
@@ -71,6 +72,7 @@ export default function App() {
   const [isFetching, setIsFetching] = useState(false);
   const [token, setToken] = useState<string | null>(null);
   const [isStatsOpen, setIsStatsOpen] = useState(false);
+  const [calendarTarget, setCalendarTarget] = useState<'self' | { google_id: string; username: string; display_name: string; picture: string; history: Record<number, { status: 'playing' | 'won' | 'lost'; guesses: string[]; date: string; targetWord?: string }> } | null>(null);
   
   const [isAuthChecking, setIsAuthChecking] = useState(() => {
     return !!localStorage.getItem('token');
@@ -478,6 +480,7 @@ export default function App() {
         gamesWon={gamesWon} 
         gamesPlayed={gamesPlayed} 
         onOpenStats={() => setIsStatsOpen(true)}
+        onOpenCalendar={() => setCalendarTarget('self')}
         onSignOut={handleSignOut}
       />
 
@@ -552,6 +555,7 @@ export default function App() {
           currentUserProfile={userProfile || { name: '', picture: '' }} 
           currentDate={rawDate || ''}
           onOpenQRCode={() => setIsQRCodeOpen(true)}
+          onOpenFriendCalendar={(friend) => setCalendarTarget(friend)}
         />
       )}
 
@@ -566,6 +570,20 @@ export default function App() {
         isOpen={isQRCodeOpen} 
         onClose={() => setIsQRCodeOpen(false)} 
         username={username || ''} 
+      />
+
+      <CalendarModal
+        isOpen={calendarTarget !== null}
+        onClose={() => setCalendarTarget(null)}
+        history={calendarTarget === 'self' ? history : (calendarTarget?.history ?? {})}
+        viewerHistory={history}
+        currentDate={rawDate || ''}
+        isFriendMode={calendarTarget !== 'self' && calendarTarget !== null}
+        friendName={calendarTarget !== 'self' && calendarTarget !== null ? calendarTarget.display_name : undefined}
+        onJumpToLevel={(index) => {
+          setViewingIndex(index);
+          setCurrentView('game');
+        }}
       />
 
       <AcceptFriendModal 

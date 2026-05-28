@@ -1462,4 +1462,363 @@ main {
   }
 }
 
+/* ===================== Calendar Modal ===================== */
+
+.calendar-modal {
+  max-width: 420px !important;
+  padding: 1.5rem !important;
+  max-height: 90dvh;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+}
+
+.calendar-modal h2 {
+  text-align: center;
+  font-size: 1.05rem;
+  font-weight: 800;
+  margin-bottom: 1rem;
+  margin-top: 0.25rem;
+}
+
+/* Month navigation row */
+.calendar-header-nav {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 0.75rem;
+}
+
+.current-month-lbl {
+  font-size: 0.95rem;
+  font-weight: 700;
+  color: white;
+  letter-spacing: 0.3px;
+}
+
+.nav-arrow {
+  background: rgba(255,255,255,0.06);
+  border: 1px solid rgba(255,255,255,0.1);
+  color: #a1a1aa;
+  border-radius: 8px;
+  width: 32px;
+  height: 32px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  padding: 0;
+}
+
+.nav-arrow:hover {
+  background: rgba(255,255,255,0.12);
+  color: white;
+}
+
+/* Day-of-week header row */
+.calendar-week-days {
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+  gap: 3px;
+  margin-bottom: 4px;
+  text-align: center;
+}
+
+.calendar-week-days span {
+  font-size: 0.7rem;
+  font-weight: 700;
+  color: #52525b;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  padding: 4px 0;
+}
+
+/* Main calendar grid */
+.calendar-grid {
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+  gap: 3px;
+}
+
+.calendar-day {
+  aspect-ratio: 1;
+  border-radius: 8px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  position: relative;
+  cursor: default;
+  transition: background 0.15s ease;
+  border: 1.5px solid transparent;
+}
+
+.calendar-day.empty {
+  background: transparent;
+}
+
+.calendar-day.has-history {
+  cursor: pointer;
+  background: rgba(255,255,255,0.04);
+  border-color: rgba(255,255,255,0.07);
+}
+
+.calendar-day.has-history:hover {
+  background: rgba(255,255,255,0.09);
+  border-color: rgba(255,255,255,0.14);
+}
+
+.calendar-day.won {
+  background: rgba(16, 185, 129, 0.12);
+  border-color: rgba(16, 185, 129, 0.3);
+}
+
+.calendar-day.won:hover {
+  background: rgba(16, 185, 129, 0.2);
+}
+
+.calendar-day.lost {
+  background: rgba(239, 68, 68, 0.1);
+  border-color: rgba(239, 68, 68, 0.25);
+}
+
+.calendar-day.lost:hover {
+  background: rgba(239, 68, 68, 0.17);
+}
+
+.calendar-day.mixed {
+  background: rgba(234, 179, 8, 0.1);
+  border-color: rgba(234, 179, 8, 0.25);
+}
+
+.calendar-day.selected {
+  box-shadow: 0 0 0 2px white;
+}
+
+.calendar-day.won.selected {
+  box-shadow: 0 0 0 2px var(--tile-correct);
+}
+
+.calendar-day.lost.selected {
+  box-shadow: 0 0 0 2px #ef4444;
+}
+
+.day-number {
+  font-size: 0.8rem;
+  font-weight: 700;
+  color: #d4d4d8;
+  line-height: 1;
+}
+
+.calendar-day.won .day-number { color: #6ee7b7; }
+.calendar-day.lost .day-number { color: #fca5a5; }
+.calendar-day.mixed .day-number { color: #fde047; }
+
+.day-dot {
+  width: 4px;
+  height: 4px;
+  border-radius: 50%;
+  background: currentColor;
+  margin-top: 2px;
+  opacity: 0.7;
+}
+
+/* Sliding day drawer */
+.calendar-drawer {
+  margin-top: 1rem;
+  border-top: 1px solid rgba(255,255,255,0.07);
+  padding-top: 0.9rem;
+  animation: slideUp 0.2s ease-out;
+}
+
+.calendar-drawer h4 {
+  font-size: 0.78rem;
+  font-weight: 700;
+  color: #71717a;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  margin-bottom: 0.6rem;
+}
+
+.drawer-levels-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.6rem;
+}
+
+/* Individual level card inside the drawer */
+.drawer-level-card {
+  background: rgba(255,255,255,0.04);
+  border: 1px solid rgba(255,255,255,0.08);
+  border-radius: 12px;
+  padding: 0.75rem;
+}
+
+.level-card-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 0.5rem;
+}
+
+.level-number {
+  font-size: 0.9rem;
+  font-weight: 800;
+  color: white;
+}
+
+.level-status-pill {
+  font-size: 0.7rem;
+  font-weight: 700;
+  padding: 2px 8px;
+  border-radius: 20px;
+  text-transform: lowercase;
+}
+
+.level-status-pill.won {
+  background: rgba(16,185,129,0.15);
+  color: #6ee7b7;
+  border: 1px solid rgba(16,185,129,0.3);
+}
+
+.level-status-pill.lost {
+  background: rgba(239,68,68,0.12);
+  color: #fca5a5;
+  border: 1px solid rgba(239,68,68,0.25);
+}
+
+.level-status-pill.playing {
+  background: rgba(255,255,255,0.06);
+  color: #a1a1aa;
+  border: 1px solid rgba(255,255,255,0.1);
+}
+
+/* Level details: target word, guesses, grid */
+.level-card-details {
+  display: flex;
+  flex-direction: column;
+  gap: 0.3rem;
+}
+
+.target-word-lbl {
+  font-size: 0.8rem;
+  color: #a1a1aa;
+}
+
+.target-word-lbl strong {
+  color: white;
+  text-transform: uppercase;
+  letter-spacing: 1.5px;
+}
+
+.attempts-lbl {
+  font-size: 0.75rem;
+  color: #71717a;
+}
+
+/* Mini guess grid preview */
+.mini-grid-preview {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  margin-top: 0.4rem;
+}
+
+.mini-grid-row {
+  display: flex;
+  gap: 2px;
+}
+
+.mini-grid-cell {
+  width: 14px;
+  height: 14px;
+  border-radius: 3px;
+  background: var(--key-bg);
+}
+
+.mini-grid-cell.correct { background: var(--tile-correct); }
+.mini-grid-cell.present { background: var(--tile-present); }
+.mini-grid-cell.absent  { background: var(--tile-absent); }
+
+/* Spoiler / locked overlay */
+.level-card-spoiler-mask {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.5rem 0;
+  color: #52525b;
+  font-size: 0.78rem;
+  font-style: italic;
+}
+
+.lock-icon {
+  flex-shrink: 0;
+  color: #3f3f46;
+}
+
+/* Jump to level button (self-mode) */
+.jump-btn {
+  margin-top: 0.6rem;
+  width: 100%;
+  background: rgba(16,185,129,0.1);
+  border: 1px solid rgba(16,185,129,0.25);
+  color: #6ee7b7;
+  border-radius: 8px;
+  padding: 0.45rem 0;
+  font-size: 0.8rem;
+  font-weight: 700;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.jump-btn:hover {
+  background: rgba(16,185,129,0.2);
+  border-color: rgba(16,185,129,0.4);
+  color: white;
+}
+
+/* Calendar header button (same glassmorphic style as stats/logout) */
+.calendar-btn {
+  background: transparent;
+  border: none;
+  color: #a1a1aa;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  padding: 6px;
+  border-radius: 8px;
+  transition: all 0.2s ease;
+}
+
+.calendar-btn:hover {
+  color: white;
+  background: rgba(255,255,255,0.08);
+}
+
+/* "View play calendar" button inside friend card body */
+.view-calendar-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  margin-top: 0.75rem;
+  width: 100%;
+  background: rgba(255,255,255,0.05);
+  border: 1px solid rgba(255,255,255,0.1);
+  color: #a1a1aa;
+  border-radius: 10px;
+  padding: 0.5rem 0;
+  font-size: 0.82rem;
+  font-weight: 700;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.view-calendar-btn:hover {
+  background: rgba(255,255,255,0.1);
+  color: white;
+  border-color: rgba(255,255,255,0.2);
+}
+
+
 
