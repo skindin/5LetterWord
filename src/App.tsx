@@ -325,18 +325,6 @@ export default function App() {
     }
   }, [currentGuess, gameStatus, guesses, targetWord, validWords, isFetching, updateCurrentGame]);
 
-  useEffect(() => {
-    const handleKeyDown = (e: KeyboardEvent) => {
-      if (e.ctrlKey || e.metaKey || e.altKey) return;
-      const key = e.key.toLowerCase();
-      if (key === 'enter' || key === 'backspace' || /^[a-z]$/.test(key)) {
-        onKeyPress(key);
-      }
-    };
-
-    window.addEventListener('keydown', handleKeyDown);
-    return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [onKeyPress]);
 
   let formattedDateStr = '';
   let wordNumStr = '';
