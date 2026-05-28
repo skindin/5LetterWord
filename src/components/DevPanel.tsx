@@ -15,7 +15,7 @@ type Tab = 'words' | 'players';
 
 export default function DevPanel({ token }: Props) {
   const [isOpen, setIsOpen] = useState(false);
-  const [tab, setTab] = useState<Tab>('words');
+  const [tab, setTab] = useState<Tab>('players');
 
   // Words tab
   const [offset, setOffset] = useState(0);
@@ -72,7 +72,7 @@ export default function DevPanel({ token }: Props) {
 
   const handleOpen = () => {
     setIsOpen(true);
-    fetchDay(0);
+    fetchUsers();
   };
 
   const switchTab = (t: Tab) => {
