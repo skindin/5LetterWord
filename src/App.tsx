@@ -4,6 +4,9 @@ import { Header } from './components/Header';
 import { Grid } from './components/Grid';
 import { Keyboard } from './components/Keyboard';
 import { StatsModal } from './components/StatsModal';
+import { SocialPage } from './components/SocialPage';
+import { QRCodeModal } from './components/QRCodeModal';
+import { AcceptFriendModal } from './components/AcceptFriendModal';
 
 type GameState = {
   targetWord: string;
@@ -69,6 +72,17 @@ export default function App() {
   const [token, setToken] = useState<string | null>(null);
   const [isStatsOpen, setIsStatsOpen] = useState(false);
   
+  // Social & Username States
+  const [username, setUsername] = useState<string | null>(null);
+  const [userProfile, setUserProfile] = useState<{ name: string; picture: string } | null>(null);
+  const [currentView, setCurrentView] = useState<'game' | 'social'>('game');
+  const [isQRCodeOpen, setIsQRCodeOpen] = useState(false);
+  const [friendToAccept, setFriendToAccept] = useState<string | null>(null);
+  const [chosenUsername, setChosenUsername] = useState('');
+  const [isSettingUsername, setIsSettingUsername] = useState(false);
+  const [setupError, setSetupError] = useState('');
+  const [isAcceptFriendOpen, setIsAcceptFriendOpen] = useState(false);
+  
   const countdown = useCountdownToMidnightCT();
 
   // Fetch valid words on initial load
@@ -77,6 +91,55 @@ export default function App() {
       .then(res => res.json())
       .then((data: string[]) => setValidWords(new Set(data)))
       .catch(err => console.error(err));
+  }, []);
+
+  // Restore session from localStorage on mount
+  useEffect(() => {
+    const savedToken = localStorage.getItem('token');
+    const savedUsername = localStorage.getItem('username');
+    const savedProfile = localStorage.getItem('userProfile');
+    
+    if (savedToken) {
+      setToken(savedToken);
+      if (savedUsername) setUsername(savedUsername);
+      if (savedProfile) setUserProfile(JSON.parse(savedProfile));
+      
+      fetch('/api/auth', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ token: savedToken })
+      })
+      .then(r => r.json())
+      .then(data => {
+        if (data.history) {
+          setHistory(data.history);
+          const max = Math.max(0, ...Object.keys(data.history).map(Number));
+          setViewingIndex(max);
+          const wins = Object.values(data.history).filter((g: any) => g.status === 'won').length;
+          setGamesWon(wins);
+        }
+        if (data.username) {
+          setUsername(data.username);
+          localStorage.setItem('username', data.username);
+        } else {
+          setUsername(null);
+          localStorage.removeItem('username');
+        }
+        if (data.user) {
+          setUserProfile(data.user);
+          localStorage.setItem('userProfile', JSON.stringify(data.user));
+        }
+      })
+      .catch(err => {
+        console.error("Auth validation failed", err);
+        localStorage.removeItem('token');
+        localStorage.removeItem('username');
+        localStorage.removeItem('userProfile');
+        setToken(null);
+        setUsername(null);
+        setUserProfile(null);
+      });
+    }
   }, []);
 
   // Fetch target word when viewing a level we haven't fetched yet
@@ -103,6 +166,80 @@ export default function App() {
         });
     }
   }, [viewingIndex, history, isFetching]);
+
+  // Check URL parameters for a friend request link
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const friendParam = params.get('friend');
+    if (friendParam) {
+      setFriendToAccept(friendParam);
+      // Clean up the URL query parameters immediately
+      window.history.replaceState({}, document.title, window.location.pathname);
+    }
+  }, []);
+
+  // When username and friendToAccept are both set, prompt acceptance
+  useEffect(() => {
+    if (token && username && friendToAccept) {
+      if (friendToAccept !== username) {
+        setIsAcceptFriendOpen(true);
+      } else {
+        setFriendToAccept(null);
+      }
+    }
+  }, [token, username, friendToAccept]);
+
+  const handleRegisterUsername = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!chosenUsername.trim()) return;
+    setIsSettingUsername(true);
+    setSetupError('');
+    try {
+      const res = await fetch('/api/user/username', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ token, username: chosenUsername })
+      });
+      const data = await res.json();
+      if (res.ok) {
+        setUsername(data.username);
+      } else {
+        setSetupError(data.error || 'could not set username');
+      }
+    } catch (err) {
+      console.error(err);
+      setSetupError('network error occurred');
+    } finally {
+      setIsSettingUsername(false);
+    }
+  };
+
+  const handleAcceptFriend = async () => {
+    if (!friendToAccept) return;
+    try {
+      const res = await fetch('/api/friends/add', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ token, friend_username: friendToAccept })
+      });
+      const data = await res.json();
+      if (res.ok) {
+        showMessage(`you are now friends with @${friendToAccept}!`);
+        setIsAcceptFriendOpen(false);
+        setFriendToAccept(null);
+        setCurrentView('social');
+      } else {
+        showMessage(data.error || 'could not add friend');
+        setIsAcceptFriendOpen(false);
+        setFriendToAccept(null);
+      }
+    } catch (err) {
+      console.error(err);
+      showMessage('network error occurred');
+      setIsAcceptFriendOpen(false);
+      setFriendToAccept(null);
+    }
+  };
 
   const showMessage = (msg: string, ms = 2000) => {
     setMessage(msg);
@@ -243,11 +380,13 @@ export default function App() {
         <h1 style={{color: 'white', marginBottom: '24px'}}>Sign in to play</h1>
         <GoogleLogin
           onSuccess={credentialResponse => {
-            setToken(credentialResponse.credential!);
+            const userToken = credentialResponse.credential!;
+            localStorage.setItem('token', userToken);
+            setToken(userToken);
             fetch('/api/auth', {
               method: 'POST',
               headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({ token: credentialResponse.credential })
+              body: JSON.stringify({ token: userToken })
             })
             .then(r => r.json())
             .then(data => {
@@ -260,12 +399,49 @@ export default function App() {
                 const wins = Object.values(data.history).filter((g: any) => g.status === 'won').length;
                 setGamesWon(wins);
               }
+              if (data.username) {
+                setUsername(data.username);
+                localStorage.setItem('username', data.username);
+              }
+              if (data.user) {
+                setUserProfile(data.user);
+                localStorage.setItem('userProfile', JSON.stringify(data.user));
+              }
             }).catch(console.error);
           }}
           onError={() => {
             console.log('Login Failed');
           }}
         />
+      </div>
+    );
+  }
+
+  if (!username) {
+    return (
+      <div className="username-setup-screen">
+        <div className="setup-card">
+          <h2>create your username</h2>
+          <p>choose a unique username to save your stats and play with friends!</p>
+          <form onSubmit={handleRegisterUsername} className="setup-form">
+            <div className="input-group">
+              <span className="prefix">@</span>
+              <input 
+                type="text" 
+                placeholder="username" 
+                value={chosenUsername} 
+                onChange={e => setChosenUsername(e.target.value.toLowerCase().replace(/[^a-z0-9_]/g, ''))}
+                maxLength={20}
+                required
+              />
+            </div>
+            <p className="setup-hint">3-20 characters. lowercase letters, numbers, or underscores only.</p>
+            {setupError && <div className="setup-error">{setupError}</div>}
+            <button type="submit" className="btn btn-primary" disabled={isSettingUsername}>
+              {isSettingUsername ? 'saving...' : 'confirm username'}
+            </button>
+          </form>
+        </div>
       </div>
     );
   }
@@ -281,61 +457,102 @@ export default function App() {
         gamesPlayed={gamesPlayed} 
         onOpenStats={() => setIsStatsOpen(true)}
       />
-      
-      <main>
-        {formattedDateStr && <div className="game-header">{formattedDateStr}, <strong>{wordNumStr}</strong> - {countdown} until next word list</div>}
-        
-        <div className="grid-nav-wrapper">
-          <button 
-            className={`nav-button ${isLeftDisabled ? 'disabled' : ''}`} 
-            onClick={handlePrev}
-            disabled={isLeftDisabled}
-          >
-            <svg viewBox="0 0 24 24" width="24" height="24">
-              <polygon points="15,6 7,12 15,18" stroke="currentColor" strokeWidth="3" strokeLinejoin="round" fill="currentColor" />
-            </svg>
-          </button>
-          
-          <div className="grid-content">
-            <Grid 
-              guesses={guesses}
-              currentGuess={currentGuess}
-              targetWord={targetWord}
-              currentRow={guesses.length}
-              gameStatus={gameStatus as any}
-              isShaking={isShaking}
-            />
-          </div>
 
-          <button 
-            className={`nav-button ${isRightDisabled ? 'disabled' : ''} ${shouldHighlightRight ? 'highlight' : ''}`} 
-            onClick={handleNext}
-            disabled={isRightDisabled}
-          >
-            <svg viewBox="0 0 24 24" width="24" height="24">
-              <polygon points="9,6 17,12 9,18" stroke="currentColor" strokeWidth="3" strokeLinejoin="round" fill="currentColor" />
-            </svg>
-          </button>
-        </div>
-        
-        <div className="legend">
-          <div className="legend-item"><span className="tile-mini correct"></span> right place</div>
-          <div className="legend-item"><span className="tile-mini present"></span> wrong place</div>
-          <div className="legend-item"><span className="tile-mini absent"></span> not in word</div>
-        </div>
-        
-        <Keyboard 
-          onKeyPress={onKeyPress}
-          guesses={guesses}
-          targetWord={targetWord}
+      <div className="tab-navigation">
+        <button 
+          className={`tab-btn ${currentView === 'game' ? 'active' : ''}`}
+          onClick={() => setCurrentView('game')}
+        >
+          game
+        </button>
+        <button 
+          className={`tab-btn ${currentView === 'social' ? 'active' : ''}`}
+          onClick={() => setCurrentView('social')}
+        >
+          social hub
+        </button>
+      </div>
+      
+      {currentView === 'game' ? (
+        <main>
+          {formattedDateStr && <div className="game-header">{formattedDateStr}, <strong>{wordNumStr}</strong> - {countdown} until next word list</div>}
+          
+          <div className="grid-nav-wrapper">
+            <button 
+              className={`nav-button ${isLeftDisabled ? 'disabled' : ''}`} 
+              onClick={handlePrev}
+              disabled={isLeftDisabled}
+            >
+              <svg viewBox="0 0 24 24" width="24" height="24">
+                <polygon points="15,6 7,12 15,18" stroke="currentColor" strokeWidth="3" strokeLinejoin="round" fill="currentColor" />
+              </svg>
+            </button>
+            
+            <div className="grid-content">
+              <Grid 
+                guesses={guesses}
+                currentGuess={currentGuess}
+                targetWord={targetWord}
+                currentRow={guesses.length}
+                gameStatus={gameStatus as any}
+                isShaking={isShaking}
+              />
+            </div>
+
+            <button 
+              className={`nav-button ${isRightDisabled ? 'disabled' : ''} ${shouldHighlightRight ? 'highlight' : ''}`} 
+              onClick={handleNext}
+              disabled={isRightDisabled}
+            >
+              <svg viewBox="0 0 24 24" width="24" height="24">
+                <polygon points="9,6 17,12 9,18" stroke="currentColor" strokeWidth="3" strokeLinejoin="round" fill="currentColor" />
+              </svg>
+            </button>
+          </div>
+          
+          <div className="legend">
+            <div className="legend-item"><span className="tile-mini correct"></span> right place</div>
+            <div className="legend-item"><span className="tile-mini present"></span> wrong place</div>
+            <div className="legend-item"><span className="tile-mini absent"></span> not in word</div>
+          </div>
+          
+          <Keyboard 
+            onKeyPress={onKeyPress}
+            guesses={guesses}
+            targetWord={targetWord}
+          />
+        </main>
+      ) : (
+        <SocialPage 
+          token={token} 
+          currentUsername={username || ''} 
+          currentUserProfile={userProfile || { name: '', picture: '' }} 
+          currentDate={rawDate || ''}
+          onOpenQRCode={() => setIsQRCodeOpen(true)}
         />
-      </main>
+      )}
 
       <StatsModal 
         isOpen={isStatsOpen} 
         onClose={() => setIsStatsOpen(false)} 
         history={history} 
         currentDate={rawDate || ''} 
+      />
+
+      <QRCodeModal 
+        isOpen={isQRCodeOpen} 
+        onClose={() => setIsQRCodeOpen(false)} 
+        username={username || ''} 
+      />
+
+      <AcceptFriendModal 
+        isOpen={isAcceptFriendOpen} 
+        friendUsername={friendToAccept || ''} 
+        onAccept={handleAcceptFriend} 
+        onClose={() => {
+          setIsAcceptFriendOpen(false);
+          setFriendToAccept(null);
+        }} 
       />
     </>
   );

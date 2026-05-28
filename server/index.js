@@ -32,8 +32,21 @@ if (process.env.DATABASE_URL) {
       email TEXT,
       history JSONB DEFAULT '{}'
     )
-  `).then(() => {
-    console.log("Database tables verified and ready.");
+  `).then(async () => {
+    // Run migrations to support usernames and profile images
+    await pool.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS username TEXT UNIQUE`);
+    await pool.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS display_name TEXT`);
+    await pool.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS picture TEXT`);
+    
+    // Create relationship table for mutual friendships
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS friendships (
+        user_id_1 TEXT REFERENCES users(google_id) ON DELETE CASCADE,
+        user_id_2 TEXT REFERENCES users(google_id) ON DELETE CASCADE,
+        PRIMARY KEY (user_id_1, user_id_2)
+      )
+    `);
+    console.log("Database tables verified, migrated, and ready.");
   }).catch(err => {
     console.error("CRITICAL DB INIT ERROR. Connection failed:", err.message);
   });
@@ -65,13 +78,21 @@ app.post('/api/auth', async (req, res) => {
 
   try {
     const result = await pool.query(`
-      INSERT INTO users (google_id, email, history)
-      VALUES ($1, $2, '{}')
-      ON CONFLICT (google_id) DO UPDATE SET email = EXCLUDED.email
-      RETURNING history
-    `, [payload.sub, payload.email]);
+      INSERT INTO users (google_id, email, display_name, picture)
+      VALUES ($1, $2, $3, $4)
+      ON CONFLICT (google_id) DO UPDATE SET 
+        email = EXCLUDED.email,
+        display_name = EXCLUDED.display_name,
+        picture = EXCLUDED.picture
+      RETURNING history, username
+    `, [payload.sub, payload.email, payload.name, payload.picture]);
     
-    res.json({ history: result.rows[0].history, user: { name: payload.name, picture: payload.picture } });
+    const row = result.rows[0];
+    res.json({ 
+      history: row.history, 
+      username: row.username,
+      user: { name: payload.name, picture: payload.picture } 
+    });
   } catch (e) {
     console.error(e);
     res.status(500).json({ error: "Database error" });
@@ -90,6 +111,159 @@ app.post('/api/sync', async (req, res) => {
     `, [JSON.stringify(req.body.history), payload.sub]);
     
     res.json({ success: true });
+  } catch (e) {
+    console.error(e);
+    res.status(500).json({ error: "Database error" });
+  }
+});
+
+// Set or update a unique username
+app.post('/api/user/username', async (req, res) => {
+  if (!pool) return res.status(500).json({ error: "Database not configured" });
+  
+  const payload = await verifyGoogleToken(req.body.token);
+  if (!payload) return res.status(401).json({ error: "Invalid token" });
+
+  const username = req.body.username?.trim().toLowerCase();
+  if (!username || username.length < 3 || username.length > 20 || !/^[a-z0-9_]+$/.test(username)) {
+    return res.status(400).json({ error: "username must be 3-20 characters and contain only lowercase letters, numbers, or underscores." });
+  }
+
+  try {
+    await pool.query(`
+      UPDATE users SET username = $1 WHERE google_id = $2
+    `, [username, payload.sub]);
+    
+    res.json({ success: true, username });
+  } catch (e) {
+    if (e.code === '23505') { // Unique constraint violation (duplicate key)
+      return res.status(400).json({ error: "username is already taken." });
+    }
+    console.error(e);
+    res.status(500).json({ error: "Database error" });
+  }
+});
+
+// Search users by username (lowercase, partial matching)
+app.post('/api/users/search', async (req, res) => {
+  if (!pool) return res.status(500).json({ error: "Database not configured" });
+  
+  const payload = await verifyGoogleToken(req.body.token);
+  if (!payload) return res.status(401).json({ error: "Invalid token" });
+
+  const searchQuery = req.body.query?.trim().toLowerCase();
+  if (!searchQuery) return res.json({ users: [] });
+
+  try {
+    const result = await pool.query(`
+      SELECT u.google_id, u.username, u.display_name, u.picture,
+             EXISTS(
+               SELECT 1 FROM friendships f 
+               WHERE (f.user_id_1 = $2 AND f.user_id_2 = u.google_id)
+                  OR (f.user_id_1 = u.google_id AND f.user_id_2 = $2)
+             ) AS is_friend
+      FROM users u
+      WHERE u.username LIKE $1 AND u.google_id != $2 AND u.username IS NOT NULL
+      LIMIT 10
+    `, [`%${searchQuery}%`, payload.sub]);
+    
+    res.json({ users: result.rows });
+  } catch (e) {
+    console.error(e);
+    res.status(500).json({ error: "Database error" });
+  }
+});
+
+// Add a friend by username or by user ID
+app.post('/api/friends/add', async (req, res) => {
+  if (!pool) return res.status(500).json({ error: "Database not configured" });
+  
+  const payload = await verifyGoogleToken(req.body.token);
+  if (!payload) return res.status(401).json({ error: "Invalid token" });
+
+  const { friend_username, friend_id } = req.body;
+  
+  try {
+    let friendResult;
+    if (friend_username) {
+      friendResult = await pool.query('SELECT google_id, username FROM users WHERE username = $1', [friend_username.trim().toLowerCase()]);
+    } else if (friend_id) {
+      friendResult = await pool.query('SELECT google_id, username FROM users WHERE google_id = $1', [friend_id]);
+    } else {
+      return res.status(400).json({ error: "missing friend username or id." });
+    }
+
+    if (friendResult.rows.length === 0) {
+      return res.status(404).json({ error: "user not found." });
+    }
+
+    const targetFriendId = friendResult.rows[0].google_id;
+    const targetFriendUsername = friendResult.rows[0].username;
+
+    if (targetFriendId === payload.sub) {
+      return res.status(400).json({ error: "you cannot friend yourself." });
+    }
+
+    // Order user IDs to ensure a single unique pair representation (user_id_1 < user_id_2)
+    const id1 = payload.sub < targetFriendId ? payload.sub : targetFriendId;
+    const id2 = payload.sub < targetFriendId ? targetFriendId : payload.sub;
+
+    await pool.query(`
+      INSERT INTO friendships (user_id_1, user_id_2)
+      VALUES ($1, $2)
+      ON CONFLICT DO NOTHING
+    `, [id1, id2]);
+
+    res.json({ success: true, friend: { google_id: targetFriendId, username: targetFriendUsername } });
+  } catch (e) {
+    console.error(e);
+    res.status(500).json({ error: "Database error" });
+  }
+});
+
+// Unfriend / Remove a mutual friend
+app.post('/api/friends/remove', async (req, res) => {
+  if (!pool) return res.status(500).json({ error: "Database not configured" });
+  
+  const payload = await verifyGoogleToken(req.body.token);
+  if (!payload) return res.status(401).json({ error: "Invalid token" });
+
+  const { friend_id } = req.body;
+  if (!friend_id) return res.status(400).json({ error: "missing friend id." });
+
+  try {
+    const id1 = payload.sub < friend_id ? payload.sub : friend_id;
+    const id2 = payload.sub < friend_id ? friend_id : payload.sub;
+
+    await pool.query(`
+      DELETE FROM friendships 
+      WHERE user_id_1 = $1 AND user_id_2 = $2
+    `, [id1, id2]);
+
+    res.json({ success: true });
+  } catch (e) {
+    console.error(e);
+    res.status(500).json({ error: "Database error" });
+  }
+});
+
+// List all friends along with their usernames, profile details, and histories/stats
+app.post('/api/friends/list', async (req, res) => {
+  if (!pool) return res.status(500).json({ error: "Database not configured" });
+  
+  const payload = await verifyGoogleToken(req.body.token);
+  if (!payload) return res.status(401).json({ error: "Invalid token" });
+
+  try {
+    const result = await pool.query(`
+      SELECT u.google_id AS google_id, u.username, u.display_name, u.picture, u.history
+      FROM users u
+      JOIN friendships f ON (f.user_id_1 = u.google_id OR f.user_id_2 = u.google_id)
+      WHERE (f.user_id_1 = $1 OR f.user_id_2 = $1)
+        AND u.google_id != $1
+    `, [payload.sub]);
+    
+    res.json({ friends: result.rows });
   } catch (e) {
     console.error(e);
     res.status(500).json({ error: "Database error" });
