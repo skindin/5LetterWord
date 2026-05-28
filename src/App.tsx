@@ -114,7 +114,12 @@ export default function App() {
         if (data.history) {
           setHistory(data.history);
           const max = Math.max(0, ...Object.keys(data.history).map(Number));
-          setViewingIndex(max);
+          const latestGame = data.history[max];
+          if (latestGame && latestGame.status !== 'playing') {
+            setViewingIndex(max + 1);
+          } else {
+            setViewingIndex(max);
+          }
           const wins = Object.values(data.history).filter((g: any) => g.status === 'won').length;
           setGamesWon(wins);
         }
@@ -358,6 +363,18 @@ export default function App() {
     }
   };
 
+  const handleSignOut = () => {
+    localStorage.removeItem('token');
+    localStorage.removeItem('username');
+    localStorage.removeItem('userProfile');
+    setToken(null);
+    setUsername(null);
+    setUserProfile(null);
+    setHistory({});
+    setGamesWon(0);
+    setViewingIndex(0);
+  };
+
   // We only count actual games finished in the viewingIndex logic, but the user requested 'gamesPlayed' at the top.
   // We can calculate games played by counting non-playing games in history, or just tracking the max index visited.
   const gamesPlayed = Object.values(history).filter(g => g.status !== 'playing').length;
@@ -381,7 +398,12 @@ export default function App() {
               if (data.history) {
                 setHistory(data.history);
                 const max = Math.max(0, ...Object.keys(data.history).map(Number));
-                setViewingIndex(max);
+                const latestGame = data.history[max];
+                if (latestGame && latestGame.status !== 'playing') {
+                  setViewingIndex(max + 1);
+                } else {
+                  setViewingIndex(max);
+                }
                 
                 // Count wins
                 const wins = Object.values(data.history).filter((g: any) => g.status === 'won').length;
@@ -436,14 +458,17 @@ export default function App() {
 
   return (
     <>
-      <div className="message-container">
-        {message && <div className="message">{message}</div>}
-      </div>
+      {message && (
+        <div className="message-container">
+          <div className="message">{message}</div>
+        </div>
+      )}
       
       <Header 
         gamesWon={gamesWon} 
         gamesPlayed={gamesPlayed} 
         onOpenStats={() => setIsStatsOpen(true)}
+        onSignOut={handleSignOut}
       />
 
       <div className="tab-navigation">

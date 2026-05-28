@@ -1,5 +1,9 @@
 @import url('https://fonts.googleapis.com/css2?family=Outfit:wght@400;600;800&display=swap');
 
+html {
+  background-color: #0f1115; /* var(--bg-color) value to prevent white gutters on bounce scroll */
+}
+
 :root {
   --bg-color: #0f1115;
   --text-color: #ffffff;
@@ -269,7 +273,7 @@ main {
 .keyboard-row {
   display: flex;
   justify-content: center;
-  gap: 6px;
+  gap: 1.5%;
 }
 
 .key {
@@ -277,11 +281,11 @@ main {
   color: white;
   border: none;
   border-radius: 6px;
-  padding: 15px 12px;
-  font-size: 1.1rem;
-  font-weight: 600;
+  padding: 15px 0;
+  font-size: 1.2rem;
+  font-weight: 700;
   cursor: pointer;
-  flex: 1;
+  width: 8.5%;
   max-width: 45px;
   display: flex;
   justify-content: center;
@@ -302,8 +306,8 @@ main {
 }
 
 .key.wide {
+  width: 13%;
   max-width: 70px;
-  flex: 1.5;
   font-size: 0.9rem;
 }
 
@@ -487,7 +491,7 @@ main {
   gap: 12px;
 }
 
-.stats-btn {
+.stats-btn, .logout-btn {
   background: transparent;
   border: none;
   color: #a1a1aa;
@@ -499,7 +503,7 @@ main {
   padding: 4px;
 }
 
-.stats-btn:hover {
+.stats-btn:hover, .logout-btn:hover {
   color: #fff;
 }
 
@@ -1228,11 +1232,11 @@ main {
     font-size: 1.6rem;
   }
   .key {
-    padding: 12px 6px;
-    font-size: 0.95rem;
+    padding: 12px 0;
+    font-size: 1.1rem;
   }
   .key.wide {
-    font-size: 0.8rem;
+    font-size: 0.95rem;
   }
 }
 
@@ -1257,11 +1261,11 @@ main {
     border-width: 1.5px;
   }
   .key {
-    padding: 10px 4px;
-    font-size: 0.85rem;
+    padding: 10px 0;
+    font-size: 1.05rem;
   }
   .key.wide {
-    font-size: 0.7rem;
+    font-size: 0.85rem;
   }
   .legend {
     margin-bottom: 8px;
