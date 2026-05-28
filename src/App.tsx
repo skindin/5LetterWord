@@ -113,6 +113,12 @@ export default function App() {
       
       <Header gamesWon={gamesWon} gamesPlayed={gamesPlayed} />
       
+      <div className="legend">
+        <div className="legend-item"><span className="tile-mini correct"></span> right place</div>
+        <div className="legend-item"><span className="tile-mini present"></span> wrong place</div>
+        <div className="legend-item"><span className="tile-mini absent"></span> not in word</div>
+      </div>
+      
       <Grid 
         guesses={guesses}
         currentGuess={currentGuess}

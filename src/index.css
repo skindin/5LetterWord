@@ -74,6 +74,32 @@ header h1 {
   box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.1);
 }
 
+/* Legend */
+.legend {
+  display: flex;
+  justify-content: center;
+  gap: 20px;
+  margin-bottom: 20px;
+  font-size: 0.9rem;
+  color: #a1a1aa;
+}
+
+.legend-item {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.tile-mini {
+  width: 16px;
+  height: 16px;
+  border-radius: 4px;
+}
+
+.tile-mini.correct { background-color: var(--tile-correct); }
+.tile-mini.present { background-color: var(--tile-present); }
+.tile-mini.absent { background-color: var(--tile-absent); }
+
 /* Main Layout */
 main {
   flex-grow: 1;
