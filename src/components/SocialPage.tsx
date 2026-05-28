@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { ConfirmUnfriendModal } from './ConfirmUnfriendModal';
 
 type FriendGameState = {
   status: 'playing' | 'won' | 'lost';
@@ -45,6 +46,7 @@ export const SocialPage: React.FC<SocialPageProps> = ({
   const [expandedFriendId, setExpandedFriendId] = useState<string | null>(null);
   const [errorMsg, setErrorMsg] = useState('');
   const [successMsg, setSuccessMsg] = useState('');
+  const [unfriendTarget, setUnfriendTarget] = useState<{ id: string; username: string } | null>(null);
 
   const showNotification = (type: 'success' | 'error', msg: string) => {
     if (type === 'success') {
@@ -127,8 +129,13 @@ export const SocialPage: React.FC<SocialPageProps> = ({
     }
   };
 
-  const handleRemoveFriend = async (friendId: string, friendUsername: string) => {
-    if (!confirm(`Are you sure you want to unfriend @${friendUsername}?`)) return;
+  const handleRemoveFriend = (friendId: string, friendUsername: string) => {
+    setUnfriendTarget({ id: friendId, username: friendUsername });
+  };
+
+  const executeRemoveFriend = async () => {
+    if (!unfriendTarget) return;
+    const { id: friendId, username: friendUsername } = unfriendTarget;
     try {
       const res = await fetch('/api/friends/remove', {
         method: 'POST',
@@ -150,6 +157,8 @@ export const SocialPage: React.FC<SocialPageProps> = ({
     } catch (err) {
       console.error('Error removing friend:', err);
       showNotification('error', 'network error removing friend');
+    } finally {
+      setUnfriendTarget(null);
     }
   };
 
@@ -374,6 +383,13 @@ export const SocialPage: React.FC<SocialPageProps> = ({
           </div>
         )}
       </div>
+
+      <ConfirmUnfriendModal
+        isOpen={unfriendTarget !== null}
+        friendUsername={unfriendTarget?.username || ''}
+        onConfirm={executeRemoveFriend}
+        onClose={() => setUnfriendTarget(null)}
+      />
     </div>
   );
 };

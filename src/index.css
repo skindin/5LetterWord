@@ -1213,69 +1213,225 @@ main {
   color: white;
 }
 
-/* Responsive adjustments for smaller screen heights/widths to prevent UI clipping/overlap */
-@media (max-height: 780px), (max-width: 480px) {
-  #root {
-    padding: 0.75rem;
-    padding-top: calc(0.75rem + env(safe-area-inset-top));
-    padding-bottom: calc(0.75rem + env(safe-area-inset-bottom));
-  }
-  header {
-    margin-bottom: 1rem;
-    padding-bottom: 0.5rem;
-  }
-  .tab-navigation {
-    margin-bottom: 1rem;
-  }
-  .grid-nav-wrapper {
-    margin-bottom: 1.5rem;
-    gap: 8px;
-  }
-  .tile {
-    width: 50px;
-    height: 50px;
-    font-size: 1.6rem;
-  }
-  .key {
-    padding: 12px 0;
-    font-size: 1.1rem;
-  }
-  .key.wide {
-    font-size: 0.95rem;
-  }
+.btn-danger {
+  background: #ef4444;
+  color: white;
 }
 
-@media (max-height: 660px) {
+.btn-danger:hover {
+  background: #dc2626;
+  transform: translateY(-1px);
+  box-shadow: 0 4px 12px rgba(239, 68, 68, 0.3);
+}
+
+
+/* Responsive adjustments for smaller screen heights/widths to prevent UI clipping/overlap */
+@media (max-height: 780px), (max-width: 480px) {
   #root {
     padding: 0.5rem;
     padding-top: calc(0.5rem + env(safe-area-inset-top));
     padding-bottom: calc(0.5rem + env(safe-area-inset-bottom));
   }
   header {
-    margin-bottom: 0.5rem;
+    margin-bottom: 0.4rem;
+    padding-bottom: 0.2rem;
+  }
+  header h1 {
+    font-size: 1.3rem;
   }
   .tab-navigation {
-    margin-bottom: 0.75rem;
+    margin-bottom: 0.5rem;
+  }
+  .game-header {
+    margin-bottom: 6px;
+    font-size: 0.85rem;
   }
   .grid-nav-wrapper {
-    margin-bottom: 1rem;
+    margin-bottom: 0.75rem;
+    gap: 6px;
   }
   .tile {
-    width: 42px;
-    height: 42px;
-    font-size: 1.4rem;
-    border-width: 1.5px;
+    width: 46px;
+    height: 46px;
+    font-size: 1.5rem;
+  }
+  .grid {
+    gap: 6px;
+  }
+  .row {
+    gap: 6px;
+  }
+  .keyboard {
+    gap: 5px;
+  }
+  .keyboard-row {
+    gap: 1%;
   }
   .key {
-    padding: 10px 0;
+    padding: 9px 0;
     font-size: 1.05rem;
   }
   .key.wide {
-    font-size: 0.85rem;
+    font-size: 0.9rem;
   }
-  .legend {
-    margin-bottom: 8px;
+  
+  /* Compact Social Page Layout */
+  .social-page-container {
+    gap: 0.75rem;
+    padding-bottom: 1.5rem;
+  }
+  .profile-hero-card {
+    padding: 0.75rem;
+    border-radius: 14px;
+  }
+  .profile-hero-avatar {
+    width: 40px;
+    height: 40px;
+  }
+  .profile-hero-meta h3 {
+    font-size: 1rem;
+  }
+  .qr-trigger-btn {
+    padding: 0.4rem 0.75rem;
     font-size: 0.8rem;
   }
+  .search-section h4, .friends-section h4 {
+    margin-bottom: 0.4rem;
+    font-size: 0.8rem;
+  }
+  .search-input {
+    padding: 0.5rem 0.75rem;
+    font-size: 0.85rem;
+  }
+  .search-btn {
+    padding: 0.5rem 1rem;
+    font-size: 0.85rem;
+  }
+  .search-user-card {
+    padding: 0.6rem 0.75rem;
+  }
+  .friend-accordion-card {
+    border-radius: 12px;
+  }
+  .friend-card-header {
+    padding: 0.6rem 0.75rem;
+  }
+  .friend-avatar {
+    width: 32px;
+    height: 32px;
+  }
+  .friend-name {
+    font-size: 0.9rem;
+  }
+  .friend-username {
+    font-size: 0.75rem;
+  }
 }
+
+@media (max-height: 660px) {
+  #root {
+    padding: 0.4rem;
+    padding-top: calc(0.4rem + env(safe-area-inset-top));
+    padding-bottom: calc(0.4rem + env(safe-area-inset-bottom));
+  }
+  header {
+    margin-bottom: 0.3rem;
+  }
+  header h1 {
+    font-size: 1.1rem;
+  }
+  .tab-navigation {
+    margin-bottom: 0.3rem;
+  }
+  .game-header {
+    margin-bottom: 4px;
+    font-size: 0.8rem;
+  }
+  .grid-nav-wrapper {
+    margin-bottom: 0.4rem;
+    gap: 4px;
+  }
+  .tile {
+    width: 38px;
+    height: 38px;
+    font-size: 1.3rem;
+    border-width: 1.5px;
+  }
+  .grid {
+    gap: 4px;
+  }
+  .row {
+    gap: 4px;
+  }
+  .keyboard {
+    gap: 4px;
+  }
+  .keyboard-row {
+    gap: 0.8%;
+  }
+  .key {
+    padding: 7px 0;
+    font-size: 1rem;
+  }
+  .key.wide {
+    font-size: 0.8rem;
+  }
+  .legend {
+    margin-bottom: 4px;
+    font-size: 0.75rem;
+  }
+  
+  /* Extra Compact Social Page Layout */
+  .social-page-container {
+    gap: 0.5rem;
+    padding-bottom: 1rem;
+  }
+  .profile-hero-card {
+    padding: 0.6rem;
+    border-radius: 12px;
+  }
+  .profile-hero-avatar {
+    width: 36px;
+    height: 36px;
+  }
+  .profile-hero-meta h3 {
+    font-size: 0.9rem;
+  }
+  .qr-trigger-btn {
+    padding: 0.3rem 0.6rem;
+    font-size: 0.75rem;
+  }
+  .search-section h4, .friends-section h4 {
+    margin-bottom: 0.3rem;
+    font-size: 0.75rem;
+  }
+  .search-input {
+    padding: 0.4rem 0.6rem;
+    font-size: 0.8rem;
+  }
+  .search-btn {
+    padding: 0.4rem 0.8rem;
+    font-size: 0.8rem;
+  }
+  .search-user-card {
+    padding: 0.5rem;
+  }
+  .friend-accordion-card {
+    border-radius: 10px;
+  }
+  .friend-card-header {
+    padding: 0.5rem;
+  }
+  .friend-avatar {
+    width: 28px;
+    height: 28px;
+  }
+  .friend-name {
+    font-size: 0.85rem;
+  }
+  .friend-username {
+    font-size: 0.7rem;
+  }
+}
+
 
