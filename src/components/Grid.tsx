@@ -6,9 +6,10 @@ interface GridProps {
   targetWord: string;
   currentRow: number;
   gameStatus: 'playing' | 'won' | 'lost';
+  isShaking: boolean;
 }
 
-export const Grid: React.FC<GridProps> = ({ guesses, currentGuess, targetWord, currentRow, gameStatus }) => {
+export const Grid: React.FC<GridProps> = ({ guesses, currentGuess, targetWord, currentRow, gameStatus, isShaking }) => {
   const getLetterStatus = (letter: string, index: number) => {
     if (targetWord[index] === letter) return 'correct';
     if (targetWord.includes(letter)) {
@@ -38,7 +39,7 @@ export const Grid: React.FC<GridProps> = ({ guesses, currentGuess, targetWord, c
 
         {/* Current Row */}
         {currentRow < 6 && gameStatus === 'playing' && (
-          <div className="row">
+          <div className={`row ${isShaking ? 'shake' : ''}`}>
             {Array.from({ length: 5 }).map((_, i) => {
               const letter = currentGuess[i];
               return (

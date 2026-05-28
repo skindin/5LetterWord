@@ -14,6 +14,7 @@ export default function App() {
   const [currentGuess, setCurrentGuess] = useState('');
   const [gameStatus, setGameStatus] = useState<'playing' | 'won' | 'lost' | 'loading'>('loading');
   const [message, setMessage] = useState('');
+  const [isShaking, setIsShaking] = useState(false);
 
   // Fetch valid words on initial load
   useEffect(() => {
@@ -58,11 +59,15 @@ export default function App() {
     if (key === 'enter') {
       if (currentGuess.length !== 5) {
         showMessage('Not enough letters');
+        setIsShaking(true);
+        setTimeout(() => setIsShaking(false), 400);
         return;
       }
       
       if (validWords.size > 0 && !validWords.has(currentGuess)) {
         showMessage('Not in word list');
+        setIsShaking(true);
+        setTimeout(() => setIsShaking(false), 400);
         return;
       }
 
@@ -119,6 +124,7 @@ export default function App() {
         targetWord={targetWord}
         currentRow={guesses.length}
         gameStatus={gameStatus}
+        isShaking={isShaking}
       />
       
       <div className="legend">
