@@ -1146,6 +1146,14 @@ main {
   color: black;
 }
 
+.qr-copy-btn.copied {
+  background: var(--tile-correct) !important;
+  border-color: var(--tile-correct) !important;
+  color: white !important;
+  cursor: default;
+}
+
+
 /* Accept Friend Request Modal */
 .accept-friend-modal {
   max-width: 400px !important;

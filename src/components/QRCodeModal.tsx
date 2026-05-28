@@ -9,13 +9,17 @@ interface QRCodeModalProps {
 export const QRCodeModal: React.FC<QRCodeModalProps> = ({ isOpen, onClose, username }) => {
   if (!isOpen) return null;
 
+  const [copied, setCopied] = React.useState(false);
+
   const addFriendUrl = `${window.location.origin}/?friend=${encodeURIComponent(username)}`;
   const qrCodeImageSrc = `https://api.qrserver.com/v1/create-qr-code/?size=250x250&data=${encodeURIComponent(addFriendUrl)}`;
 
   const handleCopyLink = () => {
     navigator.clipboard.writeText(addFriendUrl);
-    alert('Friend link copied to clipboard!');
+    setCopied(true);
+    setTimeout(() => setCopied(false), 2000);
   };
+
 
   return (
     <div className="modal-overlay" onClick={onClose}>
@@ -37,8 +41,8 @@ export const QRCodeModal: React.FC<QRCodeModalProps> = ({ isOpen, onClose, usern
             className="qr-link-input"
             onClick={e => (e.target as HTMLInputElement).select()}
           />
-          <button className="qr-copy-btn" onClick={handleCopyLink}>
-            copy link
+          <button className={`qr-copy-btn ${copied ? 'copied' : ''}`} onClick={handleCopyLink} disabled={copied}>
+            {copied ? 'copied!' : 'copy link'}
           </button>
         </div>
       </div>
