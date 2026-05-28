@@ -492,7 +492,7 @@ export default function App() {
           className={`tab-btn ${currentView === 'social' ? 'active' : ''}`}
           onClick={() => setCurrentView('social')}
         >
-          social hub
+          social
         </button>
       </div>
       
