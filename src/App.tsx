@@ -111,13 +111,14 @@ export default function App() {
   }
 
   return (
-    <main>
+    <>
       <div className="message-container">
         {message && <div className="message">{message}</div>}
       </div>
       
       <Header gamesWon={gamesWon} gamesPlayed={gamesPlayed} />
       
+      <main>
       <Grid 
         guesses={guesses}
         currentGuess={currentGuess}
@@ -138,6 +139,7 @@ export default function App() {
         guesses={guesses}
         targetWord={targetWord}
       />
-    </main>
+      </main>
+    </>
   );
 }
