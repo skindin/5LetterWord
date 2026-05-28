@@ -324,7 +324,7 @@ export default function App() {
       if (currentGuess === targetWord) {
         newStatus = 'won';
         setGamesWon(prev => prev + 1);
-        showMessage('splendid!', 0);
+        showMessage('yay you got it');
       } else if (newGuesses.length === 6) {
         newStatus = 'lost';
         showMessage(`the word was ${targetWord}`, 0);
