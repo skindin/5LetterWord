@@ -1240,22 +1240,25 @@ main {
     padding-top: calc(0.5rem + env(safe-area-inset-top));
     padding-bottom: calc(0.5rem + env(safe-area-inset-bottom));
   }
+  main {
+    justify-content: flex-start;
+  }
   header {
-    margin-bottom: 0.4rem;
-    padding-bottom: 0.2rem;
+    margin-bottom: 0.3rem;
+    padding-bottom: 0.1rem;
   }
   header h1 {
     font-size: 1.3rem;
   }
   .tab-navigation {
-    margin-bottom: 0.5rem;
+    margin-bottom: 0.3rem;
   }
   .game-header {
-    margin-bottom: 6px;
+    margin-bottom: 4px;
     font-size: 0.85rem;
   }
   .grid-nav-wrapper {
-    margin-bottom: 0.75rem;
+    margin-bottom: 0.5rem;
     gap: 6px;
   }
   .tile {
@@ -1273,14 +1276,16 @@ main {
     gap: 5px;
   }
   .keyboard-row {
-    gap: 1%;
+    gap: 1.1%;
   }
   .key {
-    padding: 9px 0;
-    font-size: 1.05rem;
+    padding: 13px 0;
+    font-size: 1.1rem;
+    width: 8.8%;
   }
   .key.wide {
-    font-size: 0.9rem;
+    font-size: 0.95rem;
+    width: 13.5%;
   }
   
   /* Compact Social Page Layout */
@@ -1342,21 +1347,24 @@ main {
     padding-top: calc(0.4rem + env(safe-area-inset-top));
     padding-bottom: calc(0.4rem + env(safe-area-inset-bottom));
   }
+  main {
+    justify-content: flex-start;
+  }
   header {
-    margin-bottom: 0.3rem;
+    margin-bottom: 0.2rem;
   }
   header h1 {
     font-size: 1.1rem;
   }
   .tab-navigation {
-    margin-bottom: 0.3rem;
+    margin-bottom: 0.2rem;
   }
   .game-header {
-    margin-bottom: 4px;
+    margin-bottom: 2px;
     font-size: 0.8rem;
   }
   .grid-nav-wrapper {
-    margin-bottom: 0.4rem;
+    margin-bottom: 0.3rem;
     gap: 4px;
   }
   .tile {
@@ -1375,14 +1383,16 @@ main {
     gap: 4px;
   }
   .keyboard-row {
-    gap: 0.8%;
+    gap: 1%;
   }
   .key {
-    padding: 7px 0;
+    padding: 11px 0;
     font-size: 1rem;
+    width: 8.9%;
   }
   .key.wide {
-    font-size: 0.8rem;
+    font-size: 0.85rem;
+    width: 13.6%;
   }
   .legend {
     margin-bottom: 4px;
