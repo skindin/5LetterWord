@@ -64,7 +64,7 @@ export default function App() {
   const currentGame = history[viewingIndex];
   const targetWord = currentGame?.targetWord || '';
   const guesses = currentGame?.guesses || [];
-  const gameStatus = currentGame?.status || 'loading';
+  const gameStatus: string = currentGame?.status || 'loading';
   const rawDate = currentGame?.date || '';
 
   const updateCurrentGame = useCallback((updates: Partial<GameState>) => {
