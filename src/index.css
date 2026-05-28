@@ -164,7 +164,7 @@ main {
 .tile.absent {
   background-color: var(--tile-absent);
   border-color: var(--tile-absent);
-  color: #9ca3af;
+  color: white;
 }
 
 /* Tile Flip Animation */
@@ -242,7 +242,6 @@ main {
 }
 .key.absent {
   background-color: var(--tile-absent);
-  opacity: 0.5;
 }
 
 /* Modals / Toasts */
