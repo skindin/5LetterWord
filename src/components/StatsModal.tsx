@@ -13,6 +13,67 @@ interface StatsModalProps {
   currentDate: string;
 }
 
+const parseDateString = (dateStr: string) => {
+  const [year, month, day] = dateStr.split('-').map(Number);
+  return new Date(year, month - 1, day);
+};
+
+const getStreakStats = (winDatesSorted: string[], currentDateStr: string) => {
+  if (winDatesSorted.length === 0) {
+    return { currentStreak: 0, longestStreak: 0 };
+  }
+
+  const dates = winDatesSorted.map(parseDateString);
+  
+  let longestStreak = 0;
+  let tempStreak = 1;
+  
+  for (let i = 0; i < dates.length; i++) {
+    if (i > 0) {
+      const diffTime = dates[i].getTime() - dates[i-1].getTime();
+      const diffDays = Math.round(diffTime / (1000 * 60 * 60 * 24));
+      if (diffDays === 1) {
+        tempStreak++;
+      } else if (diffDays > 1) {
+        if (tempStreak > longestStreak) {
+          longestStreak = tempStreak;
+        }
+        tempStreak = 1;
+      }
+    }
+  }
+  if (tempStreak > longestStreak) {
+    longestStreak = tempStreak;
+  }
+
+  // Calculate current streak
+  let currentStreak = 0;
+  const lastWinDateStr = winDatesSorted[winDatesSorted.length - 1];
+  const lastWinDate = parseDateString(lastWinDateStr);
+  const currentDate = parseDateString(currentDateStr);
+  
+  const diffTime = currentDate.getTime() - lastWinDate.getTime();
+  const diffDays = Math.round(diffTime / (1000 * 60 * 60 * 24));
+  
+  if (diffDays === 0 || diffDays === 1) {
+    let currentTemp = 1;
+    for (let i = dates.length - 1; i > 0; i--) {
+      const diffT = dates[i].getTime() - dates[i-1].getTime();
+      const diffD = Math.round(diffT / (1000 * 60 * 60 * 24));
+      if (diffD === 1) {
+        currentTemp++;
+      } else {
+        break;
+      }
+    }
+    currentStreak = currentTemp;
+  } else {
+    currentStreak = 0;
+  }
+
+  return { currentStreak, longestStreak };
+};
+
 export const StatsModal: React.FC<StatsModalProps> = ({ isOpen, onClose, history, currentDate }) => {
   if (!isOpen) return null;
 
@@ -41,6 +102,7 @@ export const StatsModal: React.FC<StatsModalProps> = ({ isOpen, onClose, history
   // Group won games by date to find most won in a single day and average won per day
   const winsByDate: Record<string, number> = {};
   const completedDates = new Set<string>();
+  const wonGames = allGames.filter(g => g.status === 'won');
   
   for (const g of allGames) {
     if (g.date) {
@@ -59,6 +121,10 @@ export const StatsModal: React.FC<StatsModalProps> = ({ isOpen, onClose, history
   const avgWonPerDay = uniqueDaysCount > 0 
     ? (overallStats.won / uniqueDaysCount).toFixed(1) 
     : "0.0";
+
+  // Calculate streaks
+  const sortedWinDates = Array.from(new Set(wonGames.map(g => g.date))).sort();
+  const { currentStreak, longestStreak } = getStreakStats(sortedWinDates, currentDate);
 
   const renderDistribution = (stats: any) => (
     <div className="stats-distribution">
@@ -87,6 +153,7 @@ export const StatsModal: React.FC<StatsModalProps> = ({ isOpen, onClose, history
         <div className="stats-summary">
           <div className="stat-box"><div className="stat-box-val">{todayStats.played}</div>played</div>
           <div className="stat-box"><div className="stat-box-val">{Math.round((todayStats.won / Math.max(todayStats.played, 1)) * 100)}%</div>win %</div>
+          <div className="stat-box"><div className="stat-box-val">{currentStreak}</div>current streak</div>
         </div>
         {renderDistribution(todayStats)}
 
@@ -98,6 +165,7 @@ export const StatsModal: React.FC<StatsModalProps> = ({ isOpen, onClose, history
           <div className="stat-box"><div className="stat-box-val">{Math.round((overallStats.won / Math.max(overallStats.played, 1)) * 100)}%</div>win %</div>
           <div className="stat-box"><div className="stat-box-val">{mostWonInADay}</div>most won/day</div>
           <div className="stat-box"><div className="stat-box-val">{avgWonPerDay}</div>avg won/day</div>
+          <div className="stat-box"><div className="stat-box-val">{longestStreak}</div>longest streak</div>
         </div>
         {renderDistribution(overallStats)}
       </div>
