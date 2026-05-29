@@ -19,7 +19,8 @@ export default function DevPanel({ token }: Props) {
 
   // Words tab
   const [offset, setOffset] = useState(0);
-  const [days, setDays] = useState<{ offset: number; date: string; words: string[] }[]>([]);
+  const [wordOffset, setWordOffset] = useState(0);
+  const [dayData, setDayData] = useState<{ date: string; words: string[]; wordOffset: number } | null>(null);
   const [wordsLoading, setWordsLoading] = useState(false);
 
   // Players tab
@@ -42,13 +43,14 @@ export default function DevPanel({ token }: Props) {
     return data;
   };
 
-  const fetchDays = async (newOffset: number) => {
+  const fetchWords = async (newOffset: number, newWordOffset: number) => {
     setWordsLoading(true);
     setError(null);
     try {
-      const data = await apiPost('/api/dev/words', { offset: newOffset, count: 5 });
-      setDays(data.days);
+      const data = await apiPost('/api/dev/words', { offset: newOffset, wordOffset: newWordOffset, count: 5 });
+      setDayData({ date: data.date, words: data.words, wordOffset: data.wordOffset });
       setOffset(newOffset);
+      setWordOffset(newWordOffset);
     } catch (e: any) {
       setError(e.message);
     } finally {
@@ -80,7 +82,7 @@ export default function DevPanel({ token }: Props) {
     setError(null);
     setActionMsg(null);
     if (t === 'players' && users.length === 0) fetchUsers();
-    if (t === 'words' && days.length === 0) fetchDays(offset);
+    if (t === 'words' && !dayData) fetchWords(offset, wordOffset);
   };
 
   const confirmAction = async () => {
@@ -127,33 +129,51 @@ export default function DevPanel({ token }: Props) {
         <>
           {wordsLoading ? (
             <div className="dev-panel-loading">Loading…</div>
-          ) : days.length > 0 ? (
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem', marginBottom: '1rem' }}>
-              {days.map(day => (
-                <div key={day.offset} className="dev-panel-day">
-                  <div className="dev-panel-date">
-                    <strong>{day.date}</strong>
-                    {day.offset === 0 ? ' (today)' : day.offset < 0 ? ` (${Math.abs(day.offset)}d ago)` : ` (+${day.offset}d)`}
-                  </div>
-                  <div className="dev-panel-words">
-                    {day.words.map((w, i) => (
-                      <div key={i} className="dev-panel-word">
-                        <span className="dev-panel-word-label">Word {i + 1}</span>
-                        <code>{w.toUpperCase()}</code>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              ))}
+          ) : dayData ? (
+            <div className="dev-panel-day" style={{ marginBottom: '1rem' }}>
+              <div className="dev-panel-date">
+                <strong>{dayData.date}</strong>
+                {offset === 0 ? ' (today)' : offset < 0 ? ` (${Math.abs(offset)}d ago)` : ` (+${offset}d)`}
+              </div>
+              <div className="dev-panel-words" style={{ display: 'flex', flexDirection: 'column', gap: '6px', marginBottom: '1rem' }}>
+                {dayData.words.map((w, i) => {
+                  const globalWordIndex = dayData.wordOffset + i;
+                  return (
+                    <div key={i} className="dev-panel-word">
+                      <span className="dev-panel-word-label">Word {globalWordIndex + 1}</span>
+                      <code>{w.toUpperCase()}</code>
+                    </div>
+                  );
+                })}
+              </div>
             </div>
           ) : null}
 
+          <div className="dev-panel-nav" style={{ marginBottom: '8px' }}>
+            <button 
+              onClick={() => fetchWords(offset, Math.max(0, wordOffset - 5))} 
+              disabled={wordsLoading || wordOffset === 0}
+            >
+              ⟪ Prev 5
+            </button>
+            <button 
+              onClick={() => fetchWords(offset, wordOffset + 5)} 
+              disabled={wordsLoading}
+            >
+              Next 5 ⟫
+            </button>
+          </div>
+
           <div className="dev-panel-nav">
-            <button onClick={() => fetchDays(offset - 5)} disabled={wordsLoading} title="Prev Page">⟪</button>
-            <button onClick={() => fetchDays(offset - 1)} disabled={wordsLoading} title="Prev Day">←</button>
-            <button onClick={() => fetchDays(0)} disabled={wordsLoading || offset === 0}>Today</button>
-            <button onClick={() => fetchDays(offset + 1)} disabled={wordsLoading} title="Next Day">→</button>
-            <button onClick={() => fetchDays(offset + 5)} disabled={wordsLoading} title="Next Page">⟫</button>
+            <button onClick={() => fetchWords(offset - 1, 0)} disabled={wordsLoading}>
+              ← Prev Day
+            </button>
+            <button onClick={() => fetchWords(0, 0)} disabled={wordsLoading || (offset === 0 && wordOffset === 0)}>
+              Today
+            </button>
+            <button onClick={() => fetchWords(offset + 1, 0)} disabled={wordsLoading}>
+              Next Day →
+            </button>
           </div>
         </>
       )}

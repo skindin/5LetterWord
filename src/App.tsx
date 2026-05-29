@@ -74,12 +74,19 @@ const getChicagoTodayStr = () => {
   return `${y}-${m.padStart(2, '0')}-${d.padStart(2, '0')}`;
 };
 
-const getTodayMaxAllowedIndex = () => {
-  const todayStr = getChicagoTodayStr();
-  const todayDate = new Date(todayStr + 'T12:00:00Z');
-  const baseDate = new Date('2026-05-28T12:00:00Z');
-  const daysDiff = Math.max(0, Math.floor((todayDate.getTime() - baseDate.getTime()) / (24 * 60 * 60 * 1000)));
-  return daysDiff * 3 + 2;
+const getWordNumberForIndex = (index: number, date: string, hist: Record<number, GameState>) => {
+  if (!date) return 1;
+  const sameDateIndexes = Object.entries(hist)
+    .filter(([idx, g]) => g.date === date && Number(idx) !== index)
+    .map(([idx]) => Number(idx));
+  
+  if (hist[index]) {
+    const allIndexes = [...sameDateIndexes, index].sort((a, b) => a - b);
+    return allIndexes.indexOf(index) + 1;
+  } else {
+    const smallerSameDate = sameDateIndexes.filter(idx => idx < index).length;
+    return smallerSameDate + 1;
+  }
 };
 
 export default function App() {
@@ -105,7 +112,7 @@ export default function App() {
   const [userProfile, setUserProfile] = useState<{ name: string; picture: string } | null>(null);
   const [isDev, setIsDev] = useState(false);
   const [friendBoardView, setFriendBoardView] = useState<{
-    guesses: string[]; targetWord: string; status: 'won' | 'lost' | 'playing'; index: number;
+    guesses: string[]; targetWord: string; status: 'won' | 'lost' | 'playing'; index: number; seqIndex?: number;
   } | null>(null);
   const [currentView, setCurrentView] = useState<'game' | 'social'>('game');
   const [isQRCodeOpen, setIsQRCodeOpen] = useState(false);
@@ -142,7 +149,7 @@ export default function App() {
         if (latestGame && latestGame.status !== 'playing') {
           nextIndex = max + 1;
         }
-        setViewingIndex(Math.min(nextIndex, getTodayMaxAllowedIndex()));
+        setViewingIndex(nextIndex);
         
         const wins = Object.values(parsedHistory).filter((g: any) => g.status === 'won').length;
         setGamesWon(wins);
@@ -170,6 +177,14 @@ export default function App() {
       .then(data => {
         if (data.history) {
           setHistory(prev => {
+            // If already logged in and server history is empty, it's a wipe!
+            if (savedToken && Object.keys(data.history).length === 0) {
+              localStorage.removeItem('gameHistory');
+              setViewingIndex(0);
+              setGamesWon(0);
+              return {};
+            }
+
             const merged = { ...data.history, ...prev };
             for (const key of Object.keys(data.history)) {
               const numKey = Number(key);
@@ -190,7 +205,7 @@ export default function App() {
             if (latestGame && latestGame.status !== 'playing') {
               nextIndex = max + 1;
             }
-            setViewingIndex(Math.min(nextIndex, getTodayMaxAllowedIndex()));
+            setViewingIndex(nextIndex);
             
             const wins = Object.values(merged).filter((g: any) => g.status === 'won').length;
             setGamesWon(wins);
@@ -427,17 +442,25 @@ export default function App() {
 
   let formattedDateStr = '';
   let wordNumStr = '';
-  if (rawDate) {
-    const dateObj = new Date(rawDate + 'T12:00:00Z');
+  const activeDate = rawDate || getChicagoTodayStr();
+  if (activeDate) {
+    const dateObj = new Date(activeDate + 'T12:00:00Z');
     formattedDateStr = dateObj.toLocaleDateString('en-US', {
       month: 'long', day: 'numeric', year: 'numeric'
     }).toLowerCase();
-    wordNumStr = `word #${(viewingIndex % 3) + 1}`;
+    const wordNum = getWordNumberForIndex(viewingIndex, activeDate, history);
+    wordNumStr = `word #${wordNum}`;
   }
 
-  const maxAllowedIndex = getTodayMaxAllowedIndex();
-  const isLeftDisabled = (viewingIndex % 3 === 0);
-  const isRightDisabled = gameStatus === 'playing' || gameStatus === 'loading' || (viewingIndex % 3 === 2) || viewingIndex >= maxAllowedIndex;
+  const todayStr = getChicagoTodayStr();
+  const isLeftDisabled = viewingIndex === 0 || 
+                         !history[viewingIndex - 1] || 
+                         history[viewingIndex - 1].date !== activeDate;
+
+  const isRightDisabled = gameStatus === 'playing' || 
+                          gameStatus === 'loading' || 
+                          (history[viewingIndex + 1] && history[viewingIndex + 1].date !== activeDate) || 
+                          (!history[viewingIndex + 1] && activeDate !== todayStr);
 
   const maxIndex = Math.max(-1, ...Object.keys(history).map(Number));
   const shouldHighlightRight = viewingIndex === maxIndex && !isRightDisabled;
@@ -497,6 +520,13 @@ export default function App() {
             .then(data => {
               if (data.history) {
                 setHistory(prev => {
+                  if (Object.keys(data.history).length === 0) {
+                    localStorage.removeItem('gameHistory');
+                    setViewingIndex(0);
+                    setGamesWon(0);
+                    return {};
+                  }
+
                   const merged = { ...data.history, ...prev };
                   for (const key of Object.keys(data.history)) {
                     const numKey = Number(key);
@@ -517,7 +547,7 @@ export default function App() {
                   if (latestGame && latestGame.status !== 'playing') {
                     nextIndex = max + 1;
                   }
-                  setViewingIndex(Math.min(nextIndex, getTodayMaxAllowedIndex()));
+                  setViewingIndex(nextIndex);
                   
                   const wins = Object.values(merged).filter((g: any) => g.status === 'won').length;
                   setGamesWon(wins);
@@ -709,6 +739,7 @@ export default function App() {
         status={friendBoardView?.status ?? 'playing'}
         friendName={calendarTarget !== 'self' && calendarTarget !== null ? calendarTarget.display_name : ''}
         levelIndex={friendBoardView?.index ?? 0}
+        seqIndex={friendBoardView?.seqIndex}
       />
 
       <AcceptFriendModal 

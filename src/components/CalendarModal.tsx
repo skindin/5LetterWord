@@ -16,7 +16,7 @@ interface CalendarModalProps {
   isFriendMode: boolean;
   friendName?: string;
   onJumpToLevel?: (index: number) => void;
-  onViewFriendBoard?: (level: { guesses: string[]; targetWord: string; status: 'won' | 'lost' | 'playing'; index: number }) => void;
+  onViewFriendBoard?: (level: { guesses: string[]; targetWord: string; status: 'won' | 'lost' | 'playing'; index: number; seqIndex?: number }) => void;
 }
 
 const MONTH_NAMES = [
@@ -197,7 +197,7 @@ export const CalendarModal: React.FC<CalendarModalProps> = ({
             </h4>
             
             <div className="drawer-levels-list">
-              {getLevelsForDate(selectedDateStr).map(level => {
+              {getLevelsForDate(selectedDateStr).map((level, seqIndex) => {
                 const isUnlocked = checkIsLevelUnlocked(level.index, level.date);
                 const showTargetWord = isFriendMode
                   ? (viewerHistory[level.index]?.status && viewerHistory[level.index]?.status !== 'playing')
@@ -206,7 +206,7 @@ export const CalendarModal: React.FC<CalendarModalProps> = ({
                 return (
                   <div key={level.index} className="drawer-level-card">
                     <div className="level-card-header">
-                      <span className="level-number">word #{(level.index % 3) + 1}</span>
+                      <span className="level-number">word #{seqIndex + 1}</span>
                       <span className={`level-status-pill ${level.status}`}>
                         {level.status === 'playing' ? 'in progress' : level.status}
                       </span>
@@ -256,6 +256,7 @@ export const CalendarModal: React.FC<CalendarModalProps> = ({
                           targetWord: level.targetWord!,
                           status: level.status,
                           index: level.index,
+                          seqIndex
                         })}
                       >
                         view board
