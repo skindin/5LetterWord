@@ -262,7 +262,7 @@ export default function App() {
   useEffect(() => {
     if (isAuthChecking) return;
     
-    if (!history[viewingIndex] && !isFetching) {
+    if ((!history[viewingIndex] || !history[viewingIndex].targetWord) && !isFetching) {
       setIsFetching(true);
       const wordNum = getWordNumberForIndex(viewingIndex, activeDate, history);
       const seqIndex = wordNum - 1;
@@ -272,10 +272,11 @@ export default function App() {
           setHistory(prev => ({
             ...prev,
             [viewingIndex]: {
+              ...prev[viewingIndex],
               targetWord: data.word,
               date: data.date,
-              guesses: [],
-              status: 'playing'
+              guesses: prev[viewingIndex]?.guesses || [],
+              status: prev[viewingIndex]?.status || 'playing'
             }
           }));
           setIsFetching(false);
@@ -423,7 +424,10 @@ export default function App() {
           setHistory(prev => {
             const nextHist = {
               ...prev,
-              [viewingIndex]: data.gameState
+              [viewingIndex]: {
+                ...data.gameState,
+                targetWord: data.gameState.targetWord || prev[viewingIndex]?.targetWord
+              }
             };
             
             const wins = Object.values(nextHist).filter((g: any) => g.status === 'won').length;
