@@ -71,6 +71,22 @@ async function verifyGoogleToken(token) {
   }
 }
 
+function sanitizeHistory(history) {
+  if (!history) return {};
+  const sanitized = {};
+  for (const [key, game] of Object.entries(history)) {
+    sanitized[key] = {
+      guesses: game.guesses || [],
+      status: game.status || 'playing',
+      date: game.date || ''
+    };
+    if (game.status === 'won' || game.status === 'lost') {
+      sanitized[key].targetWord = game.targetWord;
+    }
+  }
+  return sanitized;
+}
+
 app.post('/api/auth', async (req, res) => {
   if (!pool) return res.status(500).json({ error: "Database not configured" });
   
@@ -90,7 +106,7 @@ app.post('/api/auth', async (req, res) => {
 
     const row = result.rows[0];
     res.json({
-      history: row.history,
+      history: sanitizeHistory(row.history),
       username: row.username,
       isDev: row.is_dev,
       user: { name: payload.name, picture: payload.picture }
@@ -101,18 +117,77 @@ app.post('/api/auth', async (req, res) => {
   }
 });
 
-app.post('/api/sync', async (req, res) => {
+app.post('/api/guess', async (req, res) => {
   if (!pool) return res.status(500).json({ error: "Database not configured" });
   
   const payload = await verifyGoogleToken(req.body.token);
   if (!payload) return res.status(401).json({ error: "Invalid token" });
 
+  const { index, guess, date } = req.body;
+  const levelIndex = parseInt(index);
+  if (isNaN(levelIndex) || levelIndex < 0) {
+    return res.status(400).json({ error: "Invalid level index" });
+  }
+
+  const cleanGuess = guess?.trim().toLowerCase();
+  if (!cleanGuess || cleanGuess.length !== 5 || !/^[a-z]+$/.test(cleanGuess)) {
+    return res.status(400).json({ error: "Invalid guess format" });
+  }
+
+  if (!date || !/^\d{4}-\d{2}-\d{2}$/.test(date)) {
+    return res.status(400).json({ error: "Invalid date format" });
+  }
+
+  if (!validWordsSet.has(cleanGuess)) {
+    return res.status(400).json({ error: "Word not in dictionary" });
+  }
+
   try {
-    await pool.query(`
-      UPDATE users SET history = $1 WHERE google_id = $2
-    `, [JSON.stringify(req.body.history), payload.sub]);
-    
-    res.json({ success: true });
+    const seedString = `${date}-${levelIndex}`;
+    const seedNumber = hashString(seedString);
+    const rng = mulberry32(seedNumber);
+    const randIndex = Math.floor(rng() * targetWords.length);
+    const targetWord = targetWords[randIndex];
+
+    const userResult = await pool.query('SELECT history FROM users WHERE google_id = $1', [payload.sub]);
+    const history = userResult.rows[0]?.history || {};
+
+    if (!history[levelIndex]) {
+      history[levelIndex] = {
+        guesses: [],
+        status: 'playing',
+        date: date,
+        targetWord: targetWord
+      };
+    }
+
+    const game = history[levelIndex];
+    if (game.status === 'won' || game.status === 'lost') {
+      return res.status(400).json({ error: "Level already completed" });
+    }
+
+    if (!game.guesses) game.guesses = [];
+    game.guesses.push(cleanGuess);
+
+    if (cleanGuess === targetWord) {
+      game.status = 'won';
+    } else if (game.guesses.length >= 6) {
+      game.status = 'lost';
+    } else {
+      game.status = 'playing';
+    }
+
+    await pool.query('UPDATE users SET history = $1 WHERE google_id = $2', [JSON.stringify(history), payload.sub]);
+
+    res.json({
+      index: levelIndex,
+      gameState: {
+        guesses: game.guesses,
+        status: game.status,
+        date: game.date,
+        ...(game.status !== 'playing' ? { targetWord: game.targetWord } : {})
+      }
+    });
   } catch (e) {
     console.error(e);
     res.status(500).json({ error: "Database error" });
@@ -265,7 +340,12 @@ app.post('/api/friends/list', async (req, res) => {
         AND u.google_id != $1
     `, [payload.sub]);
     
-    res.json({ friends: result.rows });
+    const sanitizedFriends = result.rows.map(row => ({
+      ...row,
+      history: sanitizeHistory(row.history)
+    }));
+    
+    res.json({ friends: sanitizedFriends });
   } catch (e) {
     console.error(e);
     res.status(500).json({ error: "Database error" });
@@ -279,6 +359,7 @@ const targetWords = JSON.parse(fs.readFileSync(targetWordsPath, 'utf8'));
 // Full word list used to validate guesses
 const validWordsPath = path.join(__dirname, 'words.json');
 const validWords = JSON.parse(fs.readFileSync(validWordsPath, 'utf8'));
+const validWordsSet = new Set(validWords);
 
 // Provide a simple PRNG
 function mulberry32(a) {

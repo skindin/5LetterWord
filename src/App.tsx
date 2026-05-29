@@ -360,39 +360,11 @@ export default function App() {
     rawDate = Object.values(history)[0].date;
   }
 
-  const updateCurrentGame = useCallback((updates: Partial<GameState>) => {
-    setHistory(prev => ({
-      ...prev,
-      [viewingIndex]: {
-        ...prev[viewingIndex],
-        ...updates
-      }
-    }));
-  }, [viewingIndex]);
-
-  // Keep localStorage and backend database in sync when history changes
+  // Keep localStorage backup in sync when history changes
   useEffect(() => {
     if (Object.keys(history).length === 0) return;
-    
-    // Save to localStorage immediately
     localStorage.setItem('gameHistory', JSON.stringify(history));
-    
-    // POST to /api/sync if logged in, debouncing/aborting in-flight requests
-    if (token) {
-      const controller = new AbortController();
-      fetch('/api/sync', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ token, history }),
-        signal: controller.signal
-      }).catch(err => {
-        if (err.name !== 'AbortError') {
-          console.error("Failed to sync history with server:", err);
-        }
-      });
-      return () => controller.abort();
-    }
-  }, [history, token]);
+  }, [history]);
 
   const onKeyPress = useCallback((key: string) => {
     if (gameStatus !== 'playing' || isFetching) return;
@@ -417,27 +389,83 @@ export default function App() {
         return;
       }
 
-      const newGuesses = [...guesses, currentGuess];
-      let newStatus = 'playing';
+      if (token) {
+        setIsFetching(true);
+        fetch('/api/guess', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            token,
+            index: viewingIndex,
+            guess: currentGuess,
+            date: rawDate || getChicagoTodayStr()
+          })
+        })
+        .then(r => {
+          if (!r.ok) {
+            throw new Error('Guess submission failed');
+          }
+          return r.json();
+        })
+        .then(data => {
+          setHistory(prev => {
+            const nextHist = {
+              ...prev,
+              [viewingIndex]: data.gameState
+            };
+            
+            const wins = Object.values(nextHist).filter((g: any) => g.status === 'won').length;
+            setGamesWon(wins);
+            
+            return nextHist;
+          });
+          setCurrentGuess('');
+          setIsFetching(false);
+          
+          if (data.gameState.status === 'won') {
+            showMessage('yay you got it');
+          } else if (data.gameState.status === 'lost') {
+            showMessage(`the word was ${data.gameState.targetWord}`, 0);
+          }
+        })
+        .catch(err => {
+          console.error(err);
+          showMessage('failed to submit guess');
+          setIsFetching(false);
+        });
+      } else {
+        const newGuesses = [...guesses, currentGuess];
+        let newStatus: 'playing' | 'won' | 'lost' = 'playing';
 
-      if (currentGuess === targetWord) {
-        newStatus = 'won';
-        setGamesWon(prev => prev + 1);
-        showMessage('yay you got it');
-      } else if (newGuesses.length === 6) {
-        newStatus = 'lost';
-        showMessage(`the word was ${targetWord}`, 0);
+        if (currentGuess === targetWord) {
+          newStatus = 'won';
+          setGamesWon(prev => prev + 1);
+          showMessage('yay you got it');
+        } else if (newGuesses.length === 6) {
+          newStatus = 'lost';
+          showMessage(`the word was ${targetWord}`, 0);
+        }
+
+        setHistory(prev => {
+          const nextHist = {
+            ...prev,
+            [viewingIndex]: {
+              ...prev[viewingIndex],
+              guesses: newGuesses,
+              status: newStatus
+            }
+          };
+          return nextHist;
+        });
+        setCurrentGuess('');
       }
-
-      updateCurrentGame({ guesses: newGuesses, status: newStatus as any });
-      setCurrentGuess('');
       return;
     }
 
     if (currentGuess.length < 5 && /^[a-z]$/.test(key)) {
       setCurrentGuess(prev => prev + key);
     }
-  }, [currentGuess, gameStatus, guesses, targetWord, validWords, isFetching, updateCurrentGame]);
+  }, [currentGuess, gameStatus, guesses, targetWord, validWords, isFetching, token, viewingIndex, rawDate]);
 
 
   let formattedDateStr = '';
