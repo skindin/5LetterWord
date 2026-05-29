@@ -117,41 +117,52 @@ app.post('/api/auth', async (req, res) => {
   }
 });
 
+function getDailySequenceIndex(history, levelIndex, date) {
+    if (!history) return 0;
+    const sameDateIndexes = Object.entries(history)
+        .filter(([idx, g]) => g && g.date === date && parseInt(idx) !== levelIndex)
+        .map(([idx]) => parseInt(idx));
+    
+    const smallerSameDate = sameDateIndexes.filter(idx => idx < levelIndex).length;
+    return smallerSameDate;
+}
+
 app.post('/api/guess', async (req, res) => {
   if (!pool) return res.status(500).json({ error: "Database not configured" });
   
   const payload = await verifyGoogleToken(req.body.token);
   if (!payload) return res.status(401).json({ error: "Invalid token" });
-
+ 
   const { index, guess, date } = req.body;
   const levelIndex = parseInt(index);
   if (isNaN(levelIndex) || levelIndex < 0) {
     return res.status(400).json({ error: "Invalid level index" });
   }
-
+ 
   const cleanGuess = guess?.trim().toLowerCase();
   if (!cleanGuess || cleanGuess.length !== 5 || !/^[a-z]+$/.test(cleanGuess)) {
     return res.status(400).json({ error: "Invalid guess format" });
   }
-
+ 
   if (!date || !/^\d{4}-\d{2}-\d{2}$/.test(date)) {
     return res.status(400).json({ error: "Invalid date format" });
   }
-
+ 
   if (!validWordsSet.has(cleanGuess)) {
     return res.status(400).json({ error: "Word not in dictionary" });
   }
-
+ 
   try {
-    const seedString = `${date}-${levelIndex}`;
+    const userResult = await pool.query('SELECT history FROM users WHERE google_id = $1', [payload.sub]);
+    const history = userResult.rows[0]?.history || {};
+ 
+    const seqIndex = getDailySequenceIndex(history, levelIndex, date);
+    const seedString = `${date}-${seqIndex}`;
     const seedNumber = hashString(seedString);
     const rng = mulberry32(seedNumber);
     const randIndex = Math.floor(rng() * targetWords.length);
     const targetWord = targetWords[randIndex];
-
-    const userResult = await pool.query('SELECT history FROM users WHERE google_id = $1', [payload.sub]);
-    const history = userResult.rows[0]?.history || {};
-
+ 
     if (!history[levelIndex]) {
       history[levelIndex] = {
         guesses: [],
@@ -160,7 +171,7 @@ app.post('/api/guess', async (req, res) => {
         targetWord: targetWord
       };
     }
-
+ 
     const game = history[levelIndex];
     if (game.status === 'won' || game.status === 'lost') {
       return res.status(400).json({ error: "Level already completed" });
@@ -385,12 +396,14 @@ function hashString(str) {
 // Endpoint to get the target word for the given index
 app.get('/api/word', (req, res) => {
     const index = parseInt(req.query.index) || 0;
+    const seq = parseInt(req.query.seq) || 0;
     
     // Get current date in US Central Time (America/Chicago)
     const centralTimeDateStr = formatInTimeZone(new Date(), 'America/Chicago', 'yyyy-MM-dd');
+    const targetDate = req.query.date || centralTimeDateStr;
     
-    // Seed is based on the date and the index
-    const seedString = `${centralTimeDateStr}-${index}`;
+    // Seed is based on the date and the daily sequence index
+    const seedString = `${targetDate}-${seq}`;
     const seedNumber = hashString(seedString);
     
     const rng = mulberry32(seedNumber);
@@ -399,7 +412,7 @@ app.get('/api/word', (req, res) => {
     const randIndex = Math.floor(rng() * targetWords.length);
     const word = targetWords[randIndex];
     
-    res.json({ word, date: centralTimeDateStr, index });
+    res.json({ word, date: targetDate, index });
 });
 
 // Optionally, provide an endpoint to check if a word is valid.

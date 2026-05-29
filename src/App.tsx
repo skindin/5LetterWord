@@ -124,6 +124,16 @@ export default function App() {
   
   const countdown = useCountdownToMidnightCT();
 
+  const currentGame = history[viewingIndex];
+  const targetWord = currentGame?.targetWord || '';
+  const guesses = currentGame?.guesses || [];
+  const gameStatus: string = currentGame?.status || 'loading';
+  
+  let rawDate = currentGame?.date;
+  if (!rawDate && Object.keys(history).length > 0) {
+    rawDate = Object.values(history)[0].date;
+  }
+
   // Fetch valid words on initial load
   useEffect(() => {
     fetch('/api/valid-words')
@@ -248,7 +258,10 @@ export default function App() {
     
     if (!history[viewingIndex] && !isFetching) {
       setIsFetching(true);
-      fetch(`/api/word?index=${viewingIndex}`)
+      const activeDate = rawDate || getChicagoTodayStr();
+      const wordNum = getWordNumberForIndex(viewingIndex, activeDate, history);
+      const seqIndex = wordNum - 1;
+      fetch(`/api/word?index=${viewingIndex}&date=${activeDate}&seq=${seqIndex}`)
         .then(res => res.json())
         .then(data => {
           setHistory(prev => ({
@@ -267,7 +280,7 @@ export default function App() {
           setIsFetching(false);
         });
     }
-  }, [viewingIndex, history, isFetching, isAuthChecking]);
+  }, [viewingIndex, history, isFetching, isAuthChecking, rawDate]);
 
   // Check URL parameters for a friend request link
   useEffect(() => {
@@ -349,16 +362,6 @@ export default function App() {
       setTimeout(() => setMessage(''), ms);
     }
   };
-
-  const currentGame = history[viewingIndex];
-  const targetWord = currentGame?.targetWord || '';
-  const guesses = currentGame?.guesses || [];
-  const gameStatus: string = currentGame?.status || 'loading';
-  
-  let rawDate = currentGame?.date;
-  if (!rawDate && Object.keys(history).length > 0) {
-    rawDate = Object.values(history)[0].date;
-  }
 
   // Keep localStorage backup in sync when history changes
   useEffect(() => {
