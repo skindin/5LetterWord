@@ -74,6 +74,22 @@ const getChicagoTodayStr = () => {
   return `${y}-${m.padStart(2, '0')}-${d.padStart(2, '0')}`;
 };
 
+function xorDeobfuscate(hex: string, key: string): string {
+  if (!hex || !key) return '';
+  try {
+    const binary = hex.match(/.{1,2}/g)?.map(byte => String.fromCharCode(parseInt(byte, 16))).join('') || '';
+    let result = '';
+    for (let i = 0; i < binary.length; i++) {
+      const charCode = binary.charCodeAt(i) ^ key.charCodeAt(i % key.length);
+      result += String.fromCharCode(charCode);
+    }
+    return result;
+  } catch (e) {
+    console.error("Failed to de-obfuscate target word:", e);
+    return '';
+  }
+}
+
 const getWordNumberForIndex = (index: number, date: string, hist: Record<number, GameState>) => {
   if (!date) return 1;
   const sameDateIndexes = Object.entries(hist)
@@ -269,11 +285,12 @@ export default function App() {
       fetch(`/api/word?index=${viewingIndex}&date=${activeDate}&seq=${seqIndex}`)
         .then(res => res.json())
         .then(data => {
+          const decryptedWord = xorDeobfuscate(data.word, data.date);
           setHistory(prev => ({
             ...prev,
             [viewingIndex]: {
               ...prev[viewingIndex],
-              targetWord: data.word,
+              targetWord: decryptedWord,
               date: data.date,
               guesses: prev[viewingIndex]?.guesses || [],
               status: prev[viewingIndex]?.status || 'playing'
@@ -403,6 +420,30 @@ export default function App() {
       }
 
       if (token) {
+        const newGuesses = [...guesses, currentGuess];
+        let newStatus: 'playing' | 'won' | 'lost' = 'playing';
+
+        if (currentGuess === targetWord) {
+          newStatus = 'won';
+          setGamesWon(prev => prev + 1);
+          showMessage('yay you got it');
+        } else if (newGuesses.length === 6) {
+          newStatus = 'lost';
+          showMessage(`the word was ${targetWord}`, 0);
+        }
+
+        // 1. Instantly trigger flip animations and keyboard colors!
+        setHistory(prev => ({
+          ...prev,
+          [viewingIndex]: {
+            ...prev[viewingIndex],
+            guesses: newGuesses,
+            status: newStatus
+          }
+        }));
+        setCurrentGuess('');
+
+        // 2. Persist to server in the background
         setIsFetching(true);
         fetch('/api/guess', {
           method: 'POST',
@@ -421,6 +462,7 @@ export default function App() {
           return r.json();
         })
         .then(data => {
+          // Merge authoritative server state
           setHistory(prev => {
             const nextHist = {
               ...prev,
@@ -429,24 +471,15 @@ export default function App() {
                 targetWord: data.gameState.targetWord || prev[viewingIndex]?.targetWord
               }
             };
-            
             const wins = Object.values(nextHist).filter((g: any) => g.status === 'won').length;
             setGamesWon(wins);
-            
             return nextHist;
           });
-          setCurrentGuess('');
           setIsFetching(false);
-          
-          if (data.gameState.status === 'won') {
-            showMessage('yay you got it');
-          } else if (data.gameState.status === 'lost') {
-            showMessage(`the word was ${data.gameState.targetWord}`, 0);
-          }
         })
         .catch(err => {
           console.error(err);
-          showMessage('failed to submit guess');
+          showMessage('failed to sync guess with server');
           setIsFetching(false);
         });
       } else {

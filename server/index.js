@@ -451,6 +451,15 @@ function hashString(str) {
     return hash;
 }
 
+function xorObfuscate(str, key) {
+    let result = '';
+    for (let i = 0; i < str.length; i++) {
+        const charCode = str.charCodeAt(i) ^ key.charCodeAt(i % key.length);
+        result += String.fromCharCode(charCode);
+    }
+    return Buffer.from(result, 'binary').toString('hex');
+}
+
 // Endpoint to get the target word for the given index
 app.get('/api/word', (req, res) => {
     const index = parseInt(req.query.index) || 0;
@@ -470,7 +479,9 @@ app.get('/api/word', (req, res) => {
     const randIndex = Math.floor(rng() * targetWords.length);
     const word = targetWords[randIndex];
     
-    res.json({ word, date: targetDate, index });
+    const obfuscated = xorObfuscate(word, targetDate);
+    
+    res.json({ word: obfuscated, date: targetDate, index });
 });
 
 // Optionally, provide an endpoint to check if a word is valid.
