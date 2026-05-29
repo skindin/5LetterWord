@@ -185,6 +185,10 @@ export default function App() {
         return r.json();
       })
       .then(data => {
+        if (data.token && data.token !== savedToken) {
+          localStorage.setItem('token', data.token);
+          setToken(data.token);
+        }
         if (data.history) {
           setHistory(prev => {
             // If already logged in and server history is empty, it's a wipe!
@@ -552,6 +556,10 @@ export default function App() {
               return r.json();
             })
             .then(data => {
+              if (data.token) {
+                localStorage.setItem('token', data.token);
+                setToken(data.token);
+              }
               if (data.history) {
                 setHistory(prev => {
                   if (Object.keys(data.history).length === 0) {

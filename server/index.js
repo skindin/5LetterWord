@@ -7,6 +7,7 @@ import path from 'path';
 import { fileURLToPath } from 'url';
 import pg from 'pg';
 import { OAuth2Client } from 'google-auth-library';
+import crypto from 'crypto';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -47,6 +48,15 @@ if (process.env.DATABASE_URL) {
         PRIMARY KEY (user_id_1, user_id_2)
       )
     `);
+    
+    // Create sessions table for persistent Google Sign-In sessions
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS sessions (
+        session_token TEXT PRIMARY KEY,
+        google_id TEXT REFERENCES users(google_id) ON DELETE CASCADE,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+      )
+    `);
     console.log("Database tables verified, migrated, and ready.");
   }).catch(err => {
     console.error("CRITICAL DB INIT ERROR. Connection failed:", err.message);
@@ -71,6 +81,53 @@ async function verifyGoogleToken(token) {
   }
 }
 
+async function getUserFromToken(token) {
+  if (!token) return null;
+  if (!pool) return null;
+
+  try {
+    // 1. Try to find session in our database
+    const sessionRes = await pool.query(`
+      SELECT u.google_id, u.email, u.username, u.display_name, u.picture, u.is_dev, u.history
+      FROM sessions s
+      JOIN users u ON s.google_id = u.google_id
+      WHERE s.session_token = $1
+    `, [token]);
+
+    if (sessionRes.rows.length > 0) {
+      return { user: sessionRes.rows[0], token };
+    }
+
+    // 2. Try to verify as a Google ID token
+    const payload = await verifyGoogleToken(token);
+    if (!payload) return null;
+
+    // Create or update user
+    const userRes = await pool.query(`
+      INSERT INTO users (google_id, email, display_name, picture)
+      VALUES ($1, $2, $3, $4)
+      ON CONFLICT (google_id) DO UPDATE SET 
+        email = EXCLUDED.email,
+        display_name = EXCLUDED.display_name,
+        picture = EXCLUDED.picture
+      RETURNING google_id, email, username, display_name, picture, is_dev, history
+    `, [payload.sub, payload.email, payload.name, payload.picture]);
+
+    const user = userRes.rows[0];
+    const sessionToken = crypto.randomBytes(32).toString('hex');
+    
+    await pool.query(`
+      INSERT INTO sessions (session_token, google_id)
+      VALUES ($1, $2)
+    `, [sessionToken, user.google_id]);
+
+    return { user, token: sessionToken };
+  } catch (e) {
+    console.error("Error authenticating token:", e);
+    return null;
+  }
+}
+
 function sanitizeHistory(history) {
   if (!history) return {};
   const sanitized = {};
@@ -90,26 +147,17 @@ function sanitizeHistory(history) {
 app.post('/api/auth', async (req, res) => {
   if (!pool) return res.status(500).json({ error: "Database not configured" });
   
-  const payload = await verifyGoogleToken(req.body.token);
-  if (!payload) return res.status(401).json({ error: "Invalid token" });
-
   try {
-    const result = await pool.query(`
-      INSERT INTO users (google_id, email, display_name, picture)
-      VALUES ($1, $2, $3, $4)
-      ON CONFLICT (google_id) DO UPDATE SET 
-        email = EXCLUDED.email,
-        display_name = EXCLUDED.display_name,
-        picture = EXCLUDED.picture
-      RETURNING history, username, is_dev
-    `, [payload.sub, payload.email, payload.name, payload.picture]);
+    const result = await getUserFromToken(req.body.token);
+    if (!result) return res.status(401).json({ error: "Invalid token" });
 
-    const row = result.rows[0];
+    const { user, token } = result;
     res.json({
-      history: sanitizeHistory(row.history),
-      username: row.username,
-      isDev: row.is_dev,
-      user: { name: payload.name, picture: payload.picture }
+      token,
+      history: sanitizeHistory(user.history),
+      username: user.username,
+      isDev: user.is_dev,
+      user: { name: user.display_name, picture: user.picture }
     });
   } catch (e) {
     console.error(e);
@@ -130,8 +178,9 @@ function getDailySequenceIndex(history, levelIndex, date) {
 app.post('/api/guess', async (req, res) => {
   if (!pool) return res.status(500).json({ error: "Database not configured" });
   
-  const payload = await verifyGoogleToken(req.body.token);
-  if (!payload) return res.status(401).json({ error: "Invalid token" });
+  const result = await getUserFromToken(req.body.token);
+  if (!result) return res.status(401).json({ error: "Invalid token" });
+  const { user } = result;
  
   const { index, guess, date } = req.body;
   const levelIndex = parseInt(index);
@@ -158,8 +207,7 @@ app.post('/api/guess', async (req, res) => {
   }
  
   try {
-    const userResult = await pool.query('SELECT history FROM users WHERE google_id = $1', [payload.sub]);
-    const history = userResult.rows[0]?.history || {};
+    const history = user.history || {};
  
     const seqIndex = getDailySequenceIndex(history, levelIndex, date);
     const seedString = `${date}-${seqIndex}`;
@@ -193,7 +241,7 @@ app.post('/api/guess', async (req, res) => {
       game.status = 'playing';
     }
 
-    await pool.query('UPDATE users SET history = $1 WHERE google_id = $2', [JSON.stringify(history), payload.sub]);
+    await pool.query('UPDATE users SET history = $1 WHERE google_id = $2', [JSON.stringify(history), user.google_id]);
 
     res.json({
       index: levelIndex,
@@ -214,8 +262,9 @@ app.post('/api/guess', async (req, res) => {
 app.post('/api/user/username', async (req, res) => {
   if (!pool) return res.status(500).json({ error: "Database not configured" });
   
-  const payload = await verifyGoogleToken(req.body.token);
-  if (!payload) return res.status(401).json({ error: "Invalid token" });
+  const result = await getUserFromToken(req.body.token);
+  if (!result) return res.status(401).json({ error: "Invalid token" });
+  const { user } = result;
 
   const username = req.body.username?.trim().toLowerCase();
   if (!username || username.length < 3 || username.length > 20 || !/^[a-z0-9_]+$/.test(username)) {
@@ -225,7 +274,7 @@ app.post('/api/user/username', async (req, res) => {
   try {
     await pool.query(`
       UPDATE users SET username = $1 WHERE google_id = $2
-    `, [username, payload.sub]);
+    `, [username, user.google_id]);
     
     res.json({ success: true, username });
   } catch (e) {
@@ -241,8 +290,9 @@ app.post('/api/user/username', async (req, res) => {
 app.post('/api/users/search', async (req, res) => {
   if (!pool) return res.status(500).json({ error: "Database not configured" });
   
-  const payload = await verifyGoogleToken(req.body.token);
-  if (!payload) return res.status(401).json({ error: "Invalid token" });
+  const result = await getUserFromToken(req.body.token);
+  if (!result) return res.status(401).json({ error: "Invalid token" });
+  const { user } = result;
 
   const searchQuery = req.body.query?.trim().toLowerCase();
   if (!searchQuery) return res.json({ users: [] });
@@ -258,7 +308,7 @@ app.post('/api/users/search', async (req, res) => {
       FROM users u
       WHERE u.username LIKE $1 AND u.google_id != $2 AND u.username IS NOT NULL
       LIMIT 10
-    `, [`%${searchQuery}%`, payload.sub]);
+    `, [`%${searchQuery}%`, user.google_id]);
     
     res.json({ users: result.rows });
   } catch (e) {
@@ -271,8 +321,9 @@ app.post('/api/users/search', async (req, res) => {
 app.post('/api/friends/add', async (req, res) => {
   if (!pool) return res.status(500).json({ error: "Database not configured" });
   
-  const payload = await verifyGoogleToken(req.body.token);
-  if (!payload) return res.status(401).json({ error: "Invalid token" });
+  const result = await getUserFromToken(req.body.token);
+  if (!result) return res.status(401).json({ error: "Invalid token" });
+  const { user } = result;
 
   const { friend_username, friend_id } = req.body;
   
@@ -293,13 +344,13 @@ app.post('/api/friends/add', async (req, res) => {
     const targetFriendId = friendResult.rows[0].google_id;
     const targetFriendUsername = friendResult.rows[0].username;
 
-    if (targetFriendId === payload.sub) {
+    if (targetFriendId === user.google_id) {
       return res.status(400).json({ error: "you cannot friend yourself." });
     }
 
     // Order user IDs to ensure a single unique pair representation (user_id_1 < user_id_2)
-    const id1 = payload.sub < targetFriendId ? payload.sub : targetFriendId;
-    const id2 = payload.sub < targetFriendId ? targetFriendId : payload.sub;
+    const id1 = user.google_id < targetFriendId ? user.google_id : targetFriendId;
+    const id2 = user.google_id < targetFriendId ? targetFriendId : user.google_id;
 
     await pool.query(`
       INSERT INTO friendships (user_id_1, user_id_2)
@@ -318,15 +369,16 @@ app.post('/api/friends/add', async (req, res) => {
 app.post('/api/friends/remove', async (req, res) => {
   if (!pool) return res.status(500).json({ error: "Database not configured" });
   
-  const payload = await verifyGoogleToken(req.body.token);
-  if (!payload) return res.status(401).json({ error: "Invalid token" });
+  const result = await getUserFromToken(req.body.token);
+  if (!result) return res.status(401).json({ error: "Invalid token" });
+  const { user } = result;
 
   const { friend_id } = req.body;
   if (!friend_id) return res.status(400).json({ error: "missing friend id." });
 
   try {
-    const id1 = payload.sub < friend_id ? payload.sub : friend_id;
-    const id2 = payload.sub < friend_id ? friend_id : payload.sub;
+    const id1 = user.google_id < friend_id ? user.google_id : friend_id;
+    const id2 = user.google_id < friend_id ? friend_id : user.google_id;
 
     await pool.query(`
       DELETE FROM friendships 
@@ -344,8 +396,9 @@ app.post('/api/friends/remove', async (req, res) => {
 app.post('/api/friends/list', async (req, res) => {
   if (!pool) return res.status(500).json({ error: "Database not configured" });
   
-  const payload = await verifyGoogleToken(req.body.token);
-  if (!payload) return res.status(401).json({ error: "Invalid token" });
+  const result = await getUserFromToken(req.body.token);
+  if (!result) return res.status(401).json({ error: "Invalid token" });
+  const { user } = result;
 
   try {
     const result = await pool.query(`
@@ -354,7 +407,7 @@ app.post('/api/friends/list', async (req, res) => {
       JOIN friendships f ON (f.user_id_1 = u.google_id OR f.user_id_2 = u.google_id)
       WHERE (f.user_id_1 = $1 OR f.user_id_2 = $1)
         AND u.google_id != $1
-    `, [payload.sub]);
+    `, [user.google_id]);
     
     const sanitizedFriends = result.rows.map(row => ({
       ...row,
@@ -432,11 +485,10 @@ app.get('/api/valid-words', (req, res) => {
 
 async function requireDev(req, res) {
     if (!pool) { res.status(500).json({ error: 'Database not configured' }); return null; }
-    const payload = await verifyGoogleToken(req.body.token);
-    if (!payload) { res.status(401).json({ error: 'Invalid token' }); return null; }
-    const r = await pool.query('SELECT is_dev FROM users WHERE google_id = $1', [payload.sub]);
-    if (!r.rows[0]?.is_dev) { res.status(403).json({ error: 'Not authorized' }); return null; }
-    return payload;
+    const result = await getUserFromToken(req.body.token);
+    if (!result) { res.status(401).json({ error: 'Invalid token' }); return null; }
+    if (!result.user.is_dev) { res.status(403).json({ error: 'Not authorized' }); return null; }
+    return { sub: result.user.google_id };
 }
 
 // Dev-only: preview words for consecutive days starting from a given day offset
