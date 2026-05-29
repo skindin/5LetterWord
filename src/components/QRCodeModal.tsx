@@ -11,7 +11,7 @@ export const QRCodeModal: React.FC<QRCodeModalProps> = ({ isOpen, onClose, usern
 
   const [copied, setCopied] = React.useState(false);
 
-  const addFriendUrl = `${window.location.origin}/?friend=${encodeURIComponent(username)}`;
+  const addFriendUrl = `https://5letterword.gnomebuddygames.com/?friend=${encodeURIComponent(username)}`;
   const qrCodeImageSrc = `https://api.qrserver.com/v1/create-qr-code/?size=250x250&data=${encodeURIComponent(addFriendUrl)}`;
 
   const handleCopyLink = () => {
