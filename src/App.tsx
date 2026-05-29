@@ -121,7 +121,12 @@ export default function App() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ token: savedToken })
       })
-      .then(r => r.json())
+      .then(r => {
+        if (!r.ok) {
+          throw new Error('Auth validation failed with status ' + r.status);
+        }
+        return r.json();
+      })
       .then(data => {
         if (data.history) {
           setHistory(data.history);
@@ -412,7 +417,12 @@ export default function App() {
               headers: { 'Content-Type': 'application/json' },
               body: JSON.stringify({ token: userToken })
             })
-            .then(r => r.json())
+            .then(r => {
+              if (!r.ok) {
+                throw new Error('Auth failed on server');
+              }
+              return r.json();
+            })
             .then(data => {
               if (data.history) {
                 setHistory(data.history);
@@ -437,7 +447,16 @@ export default function App() {
                 localStorage.setItem('userProfile', JSON.stringify(data.user));
               }
               setIsDev(!!data.isDev);
-            }).catch(console.error);
+            })
+            .catch(err => {
+              console.error("Login verification failed", err);
+              localStorage.removeItem('token');
+              localStorage.removeItem('username');
+              localStorage.removeItem('userProfile');
+              setToken(null);
+              setUsername(null);
+              setUserProfile(null);
+            });
           }}
           onError={() => {
             console.log('Login Failed');
