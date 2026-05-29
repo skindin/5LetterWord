@@ -123,16 +123,14 @@ export default function App() {
   const [isAcceptFriendOpen, setIsAcceptFriendOpen] = useState(false);
   
   const countdown = useCountdownToMidnightCT();
+  const todayStr = getChicagoTodayStr();
 
   const currentGame = history[viewingIndex];
   const targetWord = currentGame?.targetWord || '';
   const guesses = currentGame?.guesses || [];
   const gameStatus: string = currentGame?.status || 'loading';
   
-  let rawDate = currentGame?.date;
-  if (!rawDate && Object.keys(history).length > 0) {
-    rawDate = Object.values(history)[0].date;
-  }
+  const activeDate = currentGame?.date || todayStr;
 
   // Fetch valid words on initial load
   useEffect(() => {
@@ -156,8 +154,10 @@ export default function App() {
         const max = Math.max(0, ...Object.keys(parsedHistory).map(Number));
         const latestGame = parsedHistory[max];
         let nextIndex = max;
-        if (latestGame && latestGame.status !== 'playing') {
-          nextIndex = max + 1;
+        if (latestGame) {
+          if (latestGame.date !== todayStr || latestGame.status !== 'playing') {
+            nextIndex = max + 1;
+          }
         }
         setViewingIndex(nextIndex);
         
@@ -212,8 +212,10 @@ export default function App() {
             const max = Math.max(0, ...Object.keys(merged).map(Number));
             const latestGame = merged[max];
             let nextIndex = max;
-            if (latestGame && latestGame.status !== 'playing') {
-              nextIndex = max + 1;
+            if (latestGame) {
+              if (latestGame.date !== todayStr || latestGame.status !== 'playing') {
+                nextIndex = max + 1;
+              }
             }
             setViewingIndex(nextIndex);
             
@@ -258,7 +260,6 @@ export default function App() {
     
     if (!history[viewingIndex] && !isFetching) {
       setIsFetching(true);
-      const activeDate = rawDate || getChicagoTodayStr();
       const wordNum = getWordNumberForIndex(viewingIndex, activeDate, history);
       const seqIndex = wordNum - 1;
       fetch(`/api/word?index=${viewingIndex}&date=${activeDate}&seq=${seqIndex}`)
@@ -280,7 +281,7 @@ export default function App() {
           setIsFetching(false);
         });
     }
-  }, [viewingIndex, history, isFetching, isAuthChecking, rawDate]);
+  }, [viewingIndex, history, isFetching, isAuthChecking, activeDate]);
 
   // Check URL parameters for a friend request link
   useEffect(() => {
@@ -372,6 +373,10 @@ export default function App() {
   const onKeyPress = useCallback((key: string) => {
     if (gameStatus !== 'playing' || isFetching) return;
 
+    if (activeDate !== todayStr) {
+      return;
+    }
+
     if (key === 'backspace') {
       setCurrentGuess(prev => prev.slice(0, -1));
       return;
@@ -401,7 +406,7 @@ export default function App() {
             token,
             index: viewingIndex,
             guess: currentGuess,
-            date: rawDate || getChicagoTodayStr()
+            date: activeDate
           })
         })
         .then(r => {
@@ -468,12 +473,11 @@ export default function App() {
     if (currentGuess.length < 5 && /^[a-z]$/.test(key)) {
       setCurrentGuess(prev => prev + key);
     }
-  }, [currentGuess, gameStatus, guesses, targetWord, validWords, isFetching, token, viewingIndex, rawDate]);
+  }, [currentGuess, gameStatus, guesses, targetWord, validWords, isFetching, token, viewingIndex, activeDate]);
 
 
   let formattedDateStr = '';
   let wordNumStr = '';
-  const activeDate = rawDate || getChicagoTodayStr();
   if (activeDate) {
     const dateObj = new Date(activeDate + 'T12:00:00Z');
     formattedDateStr = dateObj.toLocaleDateString('en-US', {
@@ -483,7 +487,6 @@ export default function App() {
     wordNumStr = `word #${wordNum}`;
   }
 
-  const todayStr = getChicagoTodayStr();
   const isLeftDisabled = viewingIndex === 0 || 
                          !history[viewingIndex - 1] || 
                          history[viewingIndex - 1].date !== activeDate;
@@ -575,8 +578,10 @@ export default function App() {
                   const max = Math.max(0, ...Object.keys(merged).map(Number));
                   const latestGame = merged[max];
                   let nextIndex = max;
-                  if (latestGame && latestGame.status !== 'playing') {
-                    nextIndex = max + 1;
+                  if (latestGame) {
+                    if (latestGame.date !== todayStr || latestGame.status !== 'playing') {
+                      nextIndex = max + 1;
+                    }
                   }
                   setViewingIndex(nextIndex);
                   
@@ -676,7 +681,12 @@ export default function App() {
       
       {currentView === 'game' ? (
         <main>
-          {formattedDateStr && <div className="game-header">{formattedDateStr}, <strong>{wordNumStr}</strong> - {countdown} until next word list</div>}
+          {formattedDateStr && (
+            <div className="game-header">
+              {formattedDateStr}, <strong>{wordNumStr}</strong>
+              {activeDate === todayStr ? ` - ${countdown} until next word list` : ' - view only'}
+            </div>
+          )}
           
           <div className="grid-nav-wrapper">
             <button 
@@ -728,7 +738,7 @@ export default function App() {
           token={token} 
           currentUsername={username || ''} 
           currentUserProfile={userProfile || { name: '', picture: '' }} 
-          currentDate={rawDate || ''}
+          currentDate={activeDate}
           onOpenQRCode={() => setIsQRCodeOpen(true)}
           onOpenFriendCalendar={(friend) => setCalendarTarget(friend)}
         />
@@ -738,7 +748,7 @@ export default function App() {
         isOpen={isStatsOpen} 
         onClose={() => setIsStatsOpen(false)} 
         history={history} 
-        currentDate={rawDate || ''} 
+        currentDate={activeDate} 
       />
 
       <QRCodeModal 
@@ -752,7 +762,7 @@ export default function App() {
         onClose={() => setCalendarTarget(null)}
         history={calendarTarget === 'self' ? history : (calendarTarget?.history ?? {})}
         viewerHistory={history}
-        currentDate={rawDate || ''}
+        currentDate={activeDate}
         isFriendMode={calendarTarget !== 'self' && calendarTarget !== null}
         friendName={calendarTarget !== 'self' && calendarTarget !== null ? calendarTarget.display_name : undefined}
         onJumpToLevel={(index) => {

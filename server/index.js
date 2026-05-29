@@ -148,6 +148,11 @@ app.post('/api/guess', async (req, res) => {
     return res.status(400).json({ error: "Invalid date format" });
   }
  
+  const centralTimeDateStr = formatInTimeZone(new Date(), 'America/Chicago', 'yyyy-MM-dd');
+  if (date !== centralTimeDateStr) {
+    return res.status(400).json({ error: "Guesses can only be made for today's levels." });
+  }
+ 
   if (!validWordsSet.has(cleanGuess)) {
     return res.status(400).json({ error: "Word not in dictionary" });
   }
