@@ -199,6 +199,9 @@ export const CalendarModal: React.FC<CalendarModalProps> = ({
             <div className="drawer-levels-list">
               {getLevelsForDate(selectedDateStr).map(level => {
                 const isUnlocked = checkIsLevelUnlocked(level.index, level.date);
+                const showTargetWord = isFriendMode
+                  ? (viewerHistory[level.index]?.status && viewerHistory[level.index]?.status !== 'playing')
+                  : (level.status !== 'playing');
                 
                 return (
                   <div key={level.index} className="drawer-level-card">
@@ -211,7 +214,7 @@ export const CalendarModal: React.FC<CalendarModalProps> = ({
 
                     {isUnlocked ? (
                       <div className="level-card-details">
-                        {level.targetWord && (
+                        {showTargetWord && level.targetWord && (
                           <div className="target-word-lbl">
                             target: <strong>{level.targetWord}</strong>
                           </div>
@@ -245,7 +248,7 @@ export const CalendarModal: React.FC<CalendarModalProps> = ({
                       </button>
                     )}
 
-                    {isFriendMode && isUnlocked && level.targetWord && level.guesses.length > 0 && onViewFriendBoard && (
+                    {isFriendMode && isUnlocked && showTargetWord && level.targetWord && level.guesses.length > 0 && onViewFriendBoard && (
                       <button
                         className="jump-btn view-board-btn"
                         onClick={() => onViewFriendBoard({
