@@ -305,11 +305,16 @@ function hashString(str) {
 app.get('/api/word', (req, res) => {
     const index = parseInt(req.query.index) || 0;
     
-    // Get current date in US Central Time (America/Chicago)
-    const centralTimeDateStr = formatInTimeZone(new Date(), 'America/Chicago', 'yyyy-MM-dd');
+    // Base date is 2026-05-28
+    const baseDate = new Date('2026-05-28T12:00:00Z');
+    const targetDate = new Date(baseDate.getTime() + Math.floor(index / 3) * 24 * 60 * 60 * 1000);
+    const targetDateStr = formatInTimeZone(targetDate, 'America/Chicago', 'yyyy-MM-dd');
     
-    // Seed is based on the date and the index
-    const seedString = `${centralTimeDateStr}-${index}`;
+    // Daily index is index % 3 (0, 1, 2)
+    const dailyIndex = index % 3;
+    
+    // Seed is based on the target date and the daily index
+    const seedString = `${targetDateStr}-${dailyIndex}`;
     const seedNumber = hashString(seedString);
     
     const rng = mulberry32(seedNumber);
@@ -318,7 +323,7 @@ app.get('/api/word', (req, res) => {
     const randIndex = Math.floor(rng() * targetWords.length);
     const word = targetWords[randIndex];
     
-    res.json({ word, date: centralTimeDateStr, index });
+    res.json({ word, date: targetDateStr, index });
 });
 
 // Optionally, provide an endpoint to check if a word is valid.
@@ -340,23 +345,30 @@ async function requireDev(req, res) {
     return payload;
 }
 
-// Dev-only: preview one day's words at a given day offset from today
+// Dev-only: preview words for consecutive days starting from a given day offset
 app.post('/api/dev/words', async (req, res) => {
     if (!await requireDev(req, res)) return;
 
-    const offset = parseInt(req.body.offset) || 0;
-    const date = new Date();
-    date.setDate(date.getDate() + offset);
-    const dateStr = formatInTimeZone(date, 'America/Chicago', 'yyyy-MM-dd');
+    const startOffset = parseInt(req.body.offset) || 0;
+    const count = parseInt(req.body.count) || 5;
 
-    const words = [];
-    for (let wordIndex = 0; wordIndex < 3; wordIndex++) {
-        const seedString = `${dateStr}-${wordIndex}`;
-        const rng = mulberry32(hashString(seedString));
-        words.push(targetWords[Math.floor(rng() * targetWords.length)]);
+    const days = [];
+    for (let d = 0; d < count; d++) {
+        const offset = startOffset + d;
+        const date = new Date();
+        date.setDate(date.getDate() + offset);
+        const dateStr = formatInTimeZone(date, 'America/Chicago', 'yyyy-MM-dd');
+
+        const words = [];
+        for (let wordIndex = 0; wordIndex < 3; wordIndex++) {
+            const seedString = `${dateStr}-${wordIndex}`;
+            const rng = mulberry32(hashString(seedString));
+            words.push(targetWords[Math.floor(rng() * targetWords.length)]);
+        }
+        days.push({ offset, date: dateStr, words });
     }
 
-    res.json({ offset, date: dateStr, words });
+    res.json({ days });
 });
 
 // Dev-only: list all users (email, username, google_id)

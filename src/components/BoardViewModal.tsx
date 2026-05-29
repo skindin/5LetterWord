@@ -18,7 +18,7 @@ const BoardViewModal: React.FC<Props> = ({ isOpen, onClose, guesses, targetWord,
       <div className="modal-content board-view-modal" onClick={e => e.stopPropagation()}>
         <button className="close-btn" onClick={onClose}>&times;</button>
         <h2>{friendName.toLowerCase()}'s board</h2>
-        <p className="board-view-meta">word #{levelIndex + 1} · {guesses.length}/6 guesses · <span className={`board-view-status ${status}`}>{status}</span></p>
+        <p className="board-view-meta">word #{(levelIndex % 3) + 1} · {guesses.length}/6 guesses · <span className={`board-view-status ${status}`}>{status}</span></p>
         <div className="board-view-grid">
           <Grid
             guesses={guesses}

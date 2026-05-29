@@ -206,7 +206,7 @@ export const CalendarModal: React.FC<CalendarModalProps> = ({
                 return (
                   <div key={level.index} className="drawer-level-card">
                     <div className="level-card-header">
-                      <span className="level-number">word #{level.index + 1}</span>
+                      <span className="level-number">word #{(level.index % 3) + 1}</span>
                       <span className={`level-status-pill ${level.status}`}>
                         {level.status === 'playing' ? 'in progress' : level.status}
                       </span>

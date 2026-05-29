@@ -62,6 +62,26 @@ function useCountdownToMidnightCT() {
   return timeLeft;
 }
 
+const getChicagoTodayStr = () => {
+  const formatter = new Intl.DateTimeFormat('en-US', {
+    timeZone: 'America/Chicago',
+    year: 'numeric', month: 'numeric', day: 'numeric'
+  });
+  const parts = formatter.formatToParts(new Date());
+  const y = parts.find(p => p.type === 'year')?.value || '2026';
+  const m = parts.find(p => p.type === 'month')?.value || '05';
+  const d = parts.find(p => p.type === 'day')?.value || '29';
+  return `${y}-${m.padStart(2, '0')}-${d.padStart(2, '0')}`;
+};
+
+const getTodayMaxAllowedIndex = () => {
+  const todayStr = getChicagoTodayStr();
+  const todayDate = new Date(todayStr + 'T12:00:00Z');
+  const baseDate = new Date('2026-05-28T12:00:00Z');
+  const daysDiff = Math.max(0, Math.floor((todayDate.getTime() - baseDate.getTime()) / (24 * 60 * 60 * 1000)));
+  return daysDiff * 3 + 2;
+};
+
 export default function App() {
   const [gamesWon, setGamesWon] = useState(0);
   const [viewingIndex, setViewingIndex] = useState(0);
@@ -110,7 +130,27 @@ export default function App() {
     const savedToken = localStorage.getItem('token');
     const savedUsername = localStorage.getItem('username');
     const savedProfile = localStorage.getItem('userProfile');
+    const savedHistory = localStorage.getItem('gameHistory');
     
+    if (savedHistory) {
+      try {
+        const parsedHistory = JSON.parse(savedHistory);
+        setHistory(parsedHistory);
+        const max = Math.max(0, ...Object.keys(parsedHistory).map(Number));
+        const latestGame = parsedHistory[max];
+        let nextIndex = max;
+        if (latestGame && latestGame.status !== 'playing') {
+          nextIndex = max + 1;
+        }
+        setViewingIndex(Math.min(nextIndex, getTodayMaxAllowedIndex()));
+        
+        const wins = Object.values(parsedHistory).filter((g: any) => g.status === 'won').length;
+        setGamesWon(wins);
+      } catch (e) {
+        console.error("Error parsing saved history:", e);
+      }
+    }
+
     if (savedToken) {
       setToken(savedToken);
       if (savedUsername) setUsername(savedUsername);
@@ -129,16 +169,34 @@ export default function App() {
       })
       .then(data => {
         if (data.history) {
-          setHistory(data.history);
-          const max = Math.max(0, ...Object.keys(data.history).map(Number));
-          const latestGame = data.history[max];
-          if (latestGame && latestGame.status !== 'playing') {
-            setViewingIndex(max + 1);
-          } else {
-            setViewingIndex(max);
-          }
-          const wins = Object.values(data.history).filter((g: any) => g.status === 'won').length;
-          setGamesWon(wins);
+          setHistory(prev => {
+            const merged = { ...data.history, ...prev };
+            for (const key of Object.keys(data.history)) {
+              const numKey = Number(key);
+              const serverGame = data.history[numKey];
+              const localGame = prev[numKey];
+              if (localGame && serverGame) {
+                if (localGame.guesses.length > serverGame.guesses.length) {
+                  merged[numKey] = localGame;
+                } else {
+                  merged[numKey] = serverGame;
+                }
+              }
+            }
+            
+            const max = Math.max(0, ...Object.keys(merged).map(Number));
+            const latestGame = merged[max];
+            let nextIndex = max;
+            if (latestGame && latestGame.status !== 'playing') {
+              nextIndex = max + 1;
+            }
+            setViewingIndex(Math.min(nextIndex, getTodayMaxAllowedIndex()));
+            
+            const wins = Object.values(merged).filter((g: any) => g.status === 'won').length;
+            setGamesWon(wins);
+            
+            return merged;
+          });
         }
         if (data.username) {
           setUsername(data.username);
@@ -288,26 +346,38 @@ export default function App() {
   }
 
   const updateCurrentGame = useCallback((updates: Partial<GameState>) => {
-    setHistory(prev => {
-      const newHistory = {
-        ...prev,
-        [viewingIndex]: {
-          ...prev[viewingIndex],
-          ...updates
-        }
-      };
-
-      if (token) {
-        fetch('/api/sync', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ token, history: newHistory })
-        }).catch(console.error);
+    setHistory(prev => ({
+      ...prev,
+      [viewingIndex]: {
+        ...prev[viewingIndex],
+        ...updates
       }
+    }));
+  }, [viewingIndex]);
 
-      return newHistory;
-    });
-  }, [viewingIndex, token]);
+  // Keep localStorage and backend database in sync when history changes
+  useEffect(() => {
+    if (Object.keys(history).length === 0) return;
+    
+    // Save to localStorage immediately
+    localStorage.setItem('gameHistory', JSON.stringify(history));
+    
+    // POST to /api/sync if logged in, debouncing/aborting in-flight requests
+    if (token) {
+      const controller = new AbortController();
+      fetch('/api/sync', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ token, history }),
+        signal: controller.signal
+      }).catch(err => {
+        if (err.name !== 'AbortError') {
+          console.error("Failed to sync history with server:", err);
+        }
+      });
+      return () => controller.abort();
+    }
+  }, [history, token]);
 
   const onKeyPress = useCallback((key: string) => {
     if (gameStatus !== 'playing' || isFetching) return;
@@ -362,11 +432,12 @@ export default function App() {
     formattedDateStr = dateObj.toLocaleDateString('en-US', {
       month: 'long', day: 'numeric', year: 'numeric'
     }).toLowerCase();
-    wordNumStr = `word #${viewingIndex + 1}`;
+    wordNumStr = `word #${(viewingIndex % 3) + 1}`;
   }
 
-  const isLeftDisabled = viewingIndex === 0;
-  const isRightDisabled = gameStatus === 'playing' || gameStatus === 'loading';
+  const maxAllowedIndex = getTodayMaxAllowedIndex();
+  const isLeftDisabled = (viewingIndex % 3 === 0);
+  const isRightDisabled = gameStatus === 'playing' || gameStatus === 'loading' || (viewingIndex % 3 === 2) || viewingIndex >= maxAllowedIndex;
 
   const maxIndex = Math.max(-1, ...Object.keys(history).map(Number));
   const shouldHighlightRight = viewingIndex === maxIndex && !isRightDisabled;
@@ -425,18 +496,34 @@ export default function App() {
             })
             .then(data => {
               if (data.history) {
-                setHistory(data.history);
-                const max = Math.max(0, ...Object.keys(data.history).map(Number));
-                const latestGame = data.history[max];
-                if (latestGame && latestGame.status !== 'playing') {
-                  setViewingIndex(max + 1);
-                } else {
-                  setViewingIndex(max);
-                }
-                
-                // Count wins
-                const wins = Object.values(data.history).filter((g: any) => g.status === 'won').length;
-                setGamesWon(wins);
+                setHistory(prev => {
+                  const merged = { ...data.history, ...prev };
+                  for (const key of Object.keys(data.history)) {
+                    const numKey = Number(key);
+                    const serverGame = data.history[numKey];
+                    const localGame = prev[numKey];
+                    if (localGame && serverGame) {
+                      if (localGame.guesses.length > serverGame.guesses.length) {
+                        merged[numKey] = localGame;
+                      } else {
+                        merged[numKey] = serverGame;
+                      }
+                    }
+                  }
+                  
+                  const max = Math.max(0, ...Object.keys(merged).map(Number));
+                  const latestGame = merged[max];
+                  let nextIndex = max;
+                  if (latestGame && latestGame.status !== 'playing') {
+                    nextIndex = max + 1;
+                  }
+                  setViewingIndex(Math.min(nextIndex, getTodayMaxAllowedIndex()));
+                  
+                  const wins = Object.values(merged).filter((g: any) => g.status === 'won').length;
+                  setGamesWon(wins);
+                  
+                  return merged;
+                });
               }
               if (data.username) {
                 setUsername(data.username);

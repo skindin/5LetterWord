@@ -1909,7 +1909,14 @@ main {
   padding: 1rem;
 }
 .dev-panel-day {
-  margin-bottom: 0.75rem;
+  margin-bottom: 1rem;
+  border-bottom: 1px dashed rgba(255,255,255,0.08);
+  padding-bottom: 1rem;
+}
+.dev-panel-day:last-child {
+  border-bottom: none;
+  margin-bottom: 0;
+  padding-bottom: 0;
 }
 .dev-panel-date {
   color: #6b7280;
