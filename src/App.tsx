@@ -722,6 +722,15 @@ export default function App() {
         >
           social
         </button>
+        <a 
+          href="https://gnomebuddygames.com" 
+          target="_blank" 
+          rel="noopener noreferrer" 
+          className="tab-btn other-games-tab"
+        >
+          <img src="/gnomebuddy.png" alt="gnome" className="other-games-icon" />
+          other games
+        </a>
       </div>
       
       {currentView === 'game' ? (
