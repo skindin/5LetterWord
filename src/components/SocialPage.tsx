@@ -184,9 +184,34 @@ export const SocialPage: React.FC<SocialPageProps> = ({
       return { played: list.length, won, distribution, maxVal };
     };
 
+    // Group won games by date to find most won in a single day and average won per day
+    const winsByDate: Record<string, number> = {};
+    const completedDates = new Set<string>();
+    
+    for (const g of games) {
+      if (g.date) {
+        completedDates.add(g.date);
+        if (g.status === 'won') {
+          winsByDate[g.date] = (winsByDate[g.date] || 0) + 1;
+        }
+      }
+    }
+    
+    const mostWonInADay = Object.keys(winsByDate).length > 0 
+      ? Math.max(...Object.values(winsByDate)) 
+      : 0;
+      
+    const overall = calc(games);
+    const uniqueDaysCount = completedDates.size;
+    const avgWonPerDay = uniqueDaysCount > 0 
+      ? (overall.won / uniqueDaysCount).toFixed(1) 
+      : "0.0";
+
     return {
       today: calc(todayGames),
-      overall: calc(games)
+      overall: overall,
+      mostWonInADay,
+      avgWonPerDay
     };
   };
 
@@ -373,6 +398,14 @@ export const SocialPage: React.FC<SocialPageProps> = ({
                               {Math.round((stats.overall.won / Math.max(stats.overall.played, 1)) * 100)}%
                             </span>
                             <span className="lbl">win %</span>
+                          </div>
+                          <div className="social-stat-box">
+                            <span className="val">{stats.mostWonInADay}</span>
+                            <span className="lbl">most won</span>
+                          </div>
+                          <div className="social-stat-box">
+                            <span className="val">{stats.avgWonPerDay}</span>
+                            <span className="lbl">avg won</span>
                           </div>
                         </div>
                         {renderStatsDistribution(stats.overall)}
