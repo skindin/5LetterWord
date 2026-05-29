@@ -1,10 +1,18 @@
 import { useState } from 'react';
 
+interface GameState {
+  status: 'playing' | 'won' | 'lost';
+  guesses: string[];
+  date: string;
+  targetWord?: string;
+}
+
 interface User {
   google_id: string;
   email: string;
   username: string | null;
   display_name: string | null;
+  history?: Record<number, GameState>;
 }
 
 interface Props {
@@ -12,6 +20,24 @@ interface Props {
 }
 
 type Tab = 'words' | 'players';
+
+const groupHistoryByDate = (historyObj?: Record<number, GameState>) => {
+  if (!historyObj) return {};
+  const grouped: Record<string, { index: number; game: GameState }[]> = {};
+  for (const [key, game] of Object.entries(historyObj)) {
+    if (!game) continue;
+    const dateStr = game.date || 'no date';
+    if (!grouped[dateStr]) grouped[dateStr] = [];
+    grouped[dateStr].push({ index: Number(key), game });
+  }
+  const sortedDates: Record<string, { index: number; game: GameState }[]> = {};
+  Object.keys(grouped)
+    .sort((a, b) => b.localeCompare(a))
+    .forEach(d => {
+      sortedDates[d] = grouped[d].sort((a, b) => a.index - b.index);
+    });
+  return sortedDates;
+};
 
 export default function DevPanel({ token }: Props) {
   const [isOpen, setIsOpen] = useState(false);
@@ -29,6 +55,9 @@ export default function DevPanel({ token }: Props) {
   const [usersLoading, setUsersLoading] = useState(false);
   const [actionMsg, setActionMsg] = useState<string | null>(null);
   const [confirmTarget, setConfirmTarget] = useState<{ user: User; action: 'wipe' | 'delete' } | null>(null);
+  const [confirmWipeDay, setConfirmWipeDay] = useState<{ user: User; date: string } | null>(null);
+  const [confirmWipeWord, setConfirmWipeWord] = useState<{ user: User; index: number; word: string } | null>(null);
+  const [expandedUser, setExpandedUser] = useState<string | null>(null);
 
   const [error, setError] = useState<string | null>(null);
 
@@ -92,8 +121,14 @@ export default function DevPanel({ token }: Props) {
     setError(null);
     try {
       if (action === 'wipe') {
-        await apiPost('/api/dev/wipe-history', { targetGoogleId: user.google_id });
+        const data = await apiPost('/api/dev/wipe-history', { targetGoogleId: user.google_id });
+        if (data.isSelf) {
+          localStorage.removeItem('gameHistory');
+          window.location.reload();
+          return;
+        }
         setActionMsg(`Wiped history for ${user.display_name || user.email}`);
+        await fetchUsers();
       } else {
         await apiPost('/api/dev/delete-account', { targetGoogleId: user.google_id });
         setUsers(prev => prev.filter(u => u.google_id !== user.google_id));
@@ -102,6 +137,92 @@ export default function DevPanel({ token }: Props) {
     } catch (e: any) {
       setError(e.message);
     }
+  };
+
+  const handleWipeDay = async () => {
+    if (!confirmWipeDay) return;
+    const { user, date } = confirmWipeDay;
+    setConfirmWipeDay(null);
+    setError(null);
+    setActionMsg(null);
+    try {
+      const data = await apiPost('/api/dev/wipe-day', { targetGoogleId: user.google_id, date });
+      if (data.isSelf) {
+        localStorage.removeItem('gameHistory');
+        window.location.reload();
+        return;
+      }
+      setActionMsg(`Wiped history for date ${date} for player ${user.display_name || user.email}`);
+      await fetchUsers();
+    } catch (e: any) {
+      setError(e.message);
+    }
+  };
+
+  const handleWipeWord = async () => {
+    if (!confirmWipeWord) return;
+    const { user, index, word } = confirmWipeWord;
+    setConfirmWipeWord(null);
+    setError(null);
+    setActionMsg(null);
+    try {
+      const data = await apiPost('/api/dev/wipe-word', { targetGoogleId: user.google_id, index });
+      if (data.isSelf) {
+        localStorage.removeItem('gameHistory');
+        window.location.reload();
+        return;
+      }
+      setActionMsg(`Wiped word "${word.toUpperCase()}" (Lvl ${index}) for player ${user.display_name || user.email}`);
+      await fetchUsers();
+    } catch (e: any) {
+      setError(e.message);
+    }
+  };
+
+  const renderPlayerHistory = (u: User) => {
+    const historyObj = u.history;
+    if (!historyObj || Object.keys(historyObj).length === 0) {
+      return <div className="dev-panel-no-history" style={{ padding: '8px', fontSize: '0.8rem', color: '#6b7280', textAlign: 'center' }}>No play history recorded.</div>;
+    }
+
+    const grouped = groupHistoryByDate(historyObj);
+    return (
+      <div className="dev-panel-player-history-details" style={{ borderTop: '1px solid rgba(255,255,255,0.06)', paddingTop: '8px', marginTop: '4px', maxHeight: '200px', overflowY: 'auto' }}>
+        {Object.entries(grouped).map(([dateStr, levels]) => (
+          <div key={dateStr} className="dev-panel-history-date-group" style={{ marginBottom: '10px' }}>
+            <div className="dev-panel-history-date-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: 'rgba(255,255,255,0.03)', padding: '4px 6px', borderRadius: '4px' }}>
+              <span className="dev-panel-history-date-lbl" style={{ fontSize: '0.75rem', fontWeight: 'bold', color: '#9ca3af' }}>📅 {dateStr}</span>
+              <button
+                className="dev-panel-btn-wipe"
+                onClick={() => setConfirmWipeDay({ user: u, date: dateStr })}
+                style={{ padding: '1px 4px', fontSize: '0.65rem' }}
+              >
+                Wipe Day
+              </button>
+            </div>
+            <div className="dev-panel-history-levels" style={{ display: 'flex', flexDirection: 'column', gap: '3px', marginTop: '4px', paddingLeft: '8px' }}>
+              {levels.map(({ index, game }, seqIndex) => {
+                const targetWord = game.targetWord || 'unknown';
+                return (
+                  <div key={index} className="dev-panel-history-level" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '2px 0' }}>
+                    <span className="dev-panel-history-level-info" style={{ fontSize: '0.72rem', color: '#d1d5db' }}>
+                      Word #{seqIndex + 1} (Lvl {index}): <code style={{ color: '#fbbf24', fontStyle: 'normal' }}>{targetWord.toUpperCase()}</code> ({game.guesses.length}/6, {game.status})
+                    </span>
+                    <button
+                      className="dev-panel-btn-delete"
+                      onClick={() => setConfirmWipeWord({ user: u, index, word: targetWord })}
+                      style={{ padding: '1px 4px', fontSize: '0.65rem' }}
+                    >
+                      Wipe Word
+                    </button>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        ))}
+      </div>
+    );
   };
 
   if (!isOpen) {
@@ -197,21 +318,31 @@ export default function DevPanel({ token }: Props) {
               const q = playerSearch.toLowerCase();
               return !q || (u.display_name || '').toLowerCase().includes(q) || (u.username || '').toLowerCase().includes(q) || u.email.toLowerCase().includes(q);
             }).map(u => (
-              <div key={u.google_id} className="dev-panel-player">
-                <div className="dev-panel-player-info">
-                  <span className="dev-panel-player-name">{u.display_name || u.email}</span>
-                  {u.username && <span className="dev-panel-player-username">@{u.username}</span>}
+              <div key={u.google_id} className="dev-panel-player-wrapper" style={{ display: 'flex', flexDirection: 'column', background: 'rgba(255,255,255,0.03)', borderRadius: '8px', padding: '6px', marginBottom: '4px' }}>
+                <div className="dev-panel-player" style={{ background: 'none', padding: 0 }}>
+                  <div className="dev-panel-player-info">
+                    <span className="dev-panel-player-name">{u.display_name || u.email}</span>
+                    {u.username && <span className="dev-panel-player-username">@{u.username}</span>}
+                  </div>
+                  <div className="dev-panel-player-actions">
+                    <button
+                      className="dev-panel-btn-wipe"
+                      onClick={() => setExpandedUser(expandedUser === u.google_id ? null : u.google_id)}
+                      style={{ background: 'rgba(99,102,241,0.15)', border: '1px solid rgba(99,102,241,0.3)', color: '#818cf8' }}
+                    >
+                      {expandedUser === u.google_id ? '▲ Hide' : '▼ History'}
+                    </button>
+                    <button
+                      className="dev-panel-btn-wipe"
+                      onClick={() => setConfirmTarget({ user: u, action: 'wipe' })}
+                    >Wipe All</button>
+                    <button
+                      className="dev-panel-btn-delete"
+                      onClick={() => setConfirmTarget({ user: u, action: 'delete' })}
+                    >Delete</button>
+                  </div>
                 </div>
-                <div className="dev-panel-player-actions">
-                  <button
-                    className="dev-panel-btn-wipe"
-                    onClick={() => setConfirmTarget({ user: u, action: 'wipe' })}
-                  >Wipe History</button>
-                  <button
-                    className="dev-panel-btn-delete"
-                    onClick={() => setConfirmTarget({ user: u, action: 'delete' })}
-                  >Delete</button>
-                </div>
+                {expandedUser === u.google_id && renderPlayerHistory(u)}
               </div>
             ))}
           </div>
@@ -231,6 +362,30 @@ export default function DevPanel({ token }: Props) {
               className={confirmTarget.action === 'delete' ? 'dev-panel-btn-delete' : 'dev-panel-btn-wipe'}
               onClick={confirmAction}
             >Confirm</button>
+          </div>
+        </div>
+      )}
+
+      {confirmWipeDay && (
+        <div className="dev-panel-confirm">
+          <p>
+            Wipe all history for date <strong>{confirmWipeDay.date}</strong> for player <strong>{confirmWipeDay.user.display_name || confirmWipeDay.user.email}</strong>?
+          </p>
+          <div className="dev-panel-confirm-btns">
+            <button onClick={() => setConfirmWipeDay(null)}>Cancel</button>
+            <button className="dev-panel-btn-wipe" onClick={handleWipeDay}>Confirm Wipe Day</button>
+          </div>
+        </div>
+      )}
+
+      {confirmWipeWord && (
+        <div className="dev-panel-confirm">
+          <p>
+            Wipe the word <strong>{confirmWipeWord.word.toUpperCase()}</strong> (Lvl {confirmWipeWord.index}) for player <strong>{confirmWipeWord.user.display_name || confirmWipeWord.user.email}</strong>?
+          </p>
+          <div className="dev-panel-confirm-btns">
+            <button onClick={() => setConfirmWipeWord(null)}>Cancel</button>
+            <button className="dev-panel-btn-wipe" onClick={handleWipeWord}>Confirm Wipe Word</button>
           </div>
         </div>
       )}

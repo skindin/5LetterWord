@@ -444,22 +444,68 @@ app.post('/api/dev/words', async (req, res) => {
     res.json({ offset, date: dateStr, wordOffset, words });
 });
 
-// Dev-only: list all users (email, username, google_id)
+// Dev-only: list all users (email, username, google_id, history)
 app.post('/api/dev/users', async (req, res) => {
     if (!await requireDev(req, res)) return;
     const r = await pool.query(
-        'SELECT google_id, email, username, display_name FROM users ORDER BY display_name'
+        'SELECT google_id, email, username, display_name, history FROM users ORDER BY display_name'
     );
     res.json({ users: r.rows });
 });
 
 // Dev-only: wipe a player's game history
 app.post('/api/dev/wipe-history', async (req, res) => {
-    if (!await requireDev(req, res)) return;
+    const payload = await requireDev(req, res);
+    if (!payload) return;
     const { targetGoogleId } = req.body;
     if (!targetGoogleId) return res.status(400).json({ error: 'targetGoogleId required' });
     await pool.query("UPDATE users SET history = '{}' WHERE google_id = $1", [targetGoogleId]);
-    res.json({ success: true });
+    res.json({ success: true, isSelf: payload.sub === targetGoogleId });
+});
+
+// Dev-only: wipe a specific day's history for a player
+app.post('/api/dev/wipe-day', async (req, res) => {
+    const payload = await requireDev(req, res);
+    if (!payload) return;
+    const { targetGoogleId, date } = req.body;
+    if (!targetGoogleId || !date) return res.status(400).json({ error: 'targetGoogleId and date required' });
+    
+    const userResult = await pool.query('SELECT history FROM users WHERE google_id = $1', [targetGoogleId]);
+    if (userResult.rows.length === 0) return res.status(404).json({ error: 'User not found' });
+    
+    const history = userResult.rows[0].history || {};
+    let wipedCount = 0;
+    for (const [key, game] of Object.entries(history)) {
+        if (game && game.date === date) {
+            delete history[key];
+            wipedCount++;
+        }
+    }
+    
+    await pool.query('UPDATE users SET history = $1 WHERE google_id = $2', [JSON.stringify(history), targetGoogleId]);
+    res.json({ success: true, wipedCount, isSelf: payload.sub === targetGoogleId });
+});
+
+// Dev-only: wipe a specific word (level index) history for a player
+app.post('/api/dev/wipe-word', async (req, res) => {
+    const payload = await requireDev(req, res);
+    if (!payload) return;
+    const { targetGoogleId, index } = req.body;
+    if (!targetGoogleId || index === undefined) return res.status(400).json({ error: 'targetGoogleId and level index required' });
+    
+    const levelIndex = parseInt(index);
+    if (isNaN(levelIndex)) return res.status(400).json({ error: 'Invalid level index' });
+    
+    const userResult = await pool.query('SELECT history FROM users WHERE google_id = $1', [targetGoogleId]);
+    if (userResult.rows.length === 0) return res.status(404).json({ error: 'User not found' });
+    
+    const history = userResult.rows[0].history || {};
+    if (history[levelIndex]) {
+        delete history[levelIndex];
+    }
+    
+    await pool.query('UPDATE users SET history = $1 WHERE google_id = $2', [JSON.stringify(history), targetGoogleId]);
+    res.json({ success: true, isSelf: payload.sub === targetGoogleId });
 });
 
 // Dev-only: delete a player's account entirely
