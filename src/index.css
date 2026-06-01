@@ -2172,6 +2172,209 @@ main {
   }
 }
 
+/* ===================== Credentials Login/Register UI ===================== */
+.login-card {
+  width: 100%;
+  max-width: 380px;
+  background: rgba(255, 255, 255, 0.04);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  border: 1px solid rgba(255, 255, 255, 0.07);
+  border-radius: 24px;
+  padding: 2.2rem 2rem;
+  box-shadow: 0 16px 36px rgba(0, 0, 0, 0.35);
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  animation: fadeIn 0.4s ease-out;
+}
+
+.login-logo-container {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  margin-bottom: 1.8rem;
+}
+
+.login-logo {
+  width: 72px;
+  height: 72px;
+  border-radius: 50%;
+  border: 2px solid rgba(255, 255, 255, 0.15);
+  background: rgba(255, 255, 255, 0.05);
+  padding: 4px;
+  box-shadow: 0 8px 24px rgba(0,0,0,0.25);
+  margin-bottom: 0.8rem;
+  transition: transform 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+}
+
+.login-logo:hover {
+  transform: scale(1.1) rotate(6deg);
+  border-color: var(--tile-correct);
+}
+
+.login-title {
+  font-size: 1.6rem;
+  font-weight: 800;
+  color: white;
+  letter-spacing: -0.5px;
+  background: linear-gradient(90deg, #fff, #a1a1aa);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  margin: 0;
+}
+
+/* Tab Switcher inside Login Card */
+.auth-mode-tabs {
+  display: flex;
+  background: rgba(0, 0, 0, 0.2);
+  border: 1px solid rgba(255, 255, 255, 0.05);
+  border-radius: 12px;
+  padding: 3px;
+  margin-bottom: 1.6rem;
+}
+
+.auth-tab-btn {
+  flex: 1;
+  background: transparent;
+  border: none;
+  color: #71717a;
+  padding: 0.6rem 0;
+  font-size: 0.85rem;
+  font-weight: 700;
+  cursor: pointer;
+  border-radius: 8px;
+  transition: all 0.2s ease;
+}
+
+.auth-tab-btn.active {
+  color: white;
+  background: rgba(255, 255, 255, 0.08);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.1);
+}
+
+.auth-tab-btn:hover:not(.active) {
+  color: #a1a1aa;
+}
+
+/* Credentials Form inputs */
+.credentials-form {
+  display: flex;
+  flex-direction: column;
+  gap: 1.2rem;
+}
+
+.input-group-field {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  text-align: left;
+}
+
+.input-group-field label {
+  font-size: 0.72rem;
+  font-weight: 700;
+  color: #71717a;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  padding-left: 2px;
+}
+
+.input-group-field input {
+  background: rgba(0, 0, 0, 0.25);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 10px;
+  color: white;
+  padding: 0.75rem 0.9rem;
+  font-size: 0.9rem;
+  font-weight: 600;
+  outline: none;
+  transition: all 0.2s ease;
+}
+
+.input-group-field input:focus {
+  border-color: rgba(255, 255, 255, 0.25);
+  background: rgba(0, 0, 0, 0.35);
+  box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.1);
+}
+
+.input-group-field input::placeholder {
+  color: #52525b;
+}
+
+.auth-error-banner {
+  background: rgba(239, 68, 68, 0.1);
+  border: 1px solid rgba(239, 68, 68, 0.25);
+  color: #fca5a5;
+  font-size: 0.8rem;
+  font-weight: 600;
+  padding: 0.6rem 0.8rem;
+  border-radius: 10px;
+  text-align: center;
+  animation: shake 0.3s ease;
+}
+
+.auth-submit-btn {
+  margin-top: 0.5rem;
+  padding: 0.8rem 0;
+  font-size: 0.9rem;
+  font-weight: 800;
+  border-radius: 10px;
+}
+
+/* Divider for secondary logins */
+.auth-divider {
+  display: flex;
+  align-items: center;
+  margin: 1.6rem 0;
+  color: #3f3f46;
+}
+
+.auth-divider::before,
+.auth-divider::after {
+  content: '';
+  flex: 1;
+  height: 1px;
+  background: rgba(255, 255, 255, 0.05);
+}
+
+.auth-divider span {
+  font-size: 0.72rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 1px;
+  padding: 0 10px;
+  color: #52525b;
+}
+
+/* Center Google Auth Button */
+.google-auth-wrapper {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  min-height: 40px;
+}
+
+@media (max-width: 480px) {
+  .login-card {
+    padding: 1.8rem 1.4rem;
+    max-width: 92%;
+    border-radius: 20px;
+  }
+  .login-logo {
+    width: 64px;
+    height: 64px;
+  }
+  .login-title {
+    font-size: 1.4rem;
+  }
+  .input-group-field input {
+    padding: 0.65rem 0.8rem;
+    font-size: 0.85rem;
+  }
+}
+
+
 
 
 

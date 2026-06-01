@@ -137,6 +137,13 @@ export default function App() {
   const [isSettingUsername, setIsSettingUsername] = useState(false);
   const [setupError, setSetupError] = useState('');
   const [isAcceptFriendOpen, setIsAcceptFriendOpen] = useState(false);
+
+  // Credentials Authentication States
+  const [authMode, setAuthMode] = useState<'login' | 'register'>('login');
+  const [authUsername, setAuthUsername] = useState('');
+  const [authPassword, setAuthPassword] = useState('');
+  const [authError, setAuthError] = useState('');
+  const [isSubmittingAuth, setIsSubmittingAuth] = useState(false);
   
   const countdown = useCountdownToMidnightCT();
   const todayStr = getChicagoTodayStr();
@@ -326,6 +333,97 @@ export default function App() {
       }
     }
   }, [token, username, friendToAccept]);
+
+  const handleAuthSuccess = (data: any) => {
+    if (data.token) {
+      localStorage.setItem('token', data.token);
+      setToken(data.token);
+    }
+    if (data.username) {
+      setUsername(data.username);
+      localStorage.setItem('username', data.username);
+    }
+    if (data.user) {
+      setUserProfile(data.user);
+      localStorage.setItem('userProfile', JSON.stringify(data.user));
+    }
+    setIsDev(!!data.isDev);
+
+    if (data.history) {
+      setHistory(prev => {
+        if (Object.keys(data.history).length === 0) {
+          localStorage.removeItem('gameHistory');
+          setViewingIndex(0);
+          setGamesWon(0);
+          return {};
+        }
+
+        const merged = { ...data.history, ...prev };
+        for (const key of Object.keys(data.history)) {
+          const numKey = Number(key);
+          const serverGame = data.history[numKey];
+          const localGame = prev[numKey];
+          if (localGame && serverGame) {
+            if (localGame.guesses.length > serverGame.guesses.length) {
+              merged[numKey] = localGame;
+            } else {
+              merged[numKey] = serverGame;
+            }
+          }
+        }
+        
+        const max = Math.max(0, ...Object.keys(merged).map(Number));
+        const latestGame = merged[max];
+        let nextIndex = max;
+        if (latestGame) {
+          if (latestGame.date !== todayStr || latestGame.status !== 'playing') {
+            nextIndex = max + 1;
+          }
+        }
+        setViewingIndex(nextIndex);
+        
+        const wins = Object.values(merged).filter((g: any) => g.status === 'won').length;
+        setGamesWon(wins);
+        
+        // Save to local storage for quick offline loading
+        localStorage.setItem('gameHistory', JSON.stringify(merged));
+        
+        return merged;
+      });
+    }
+  };
+
+  const handleLocalAuth = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!authUsername.trim() || !authPassword) return;
+
+    setIsSubmittingAuth(true);
+    setAuthError('');
+
+    const endpoint = authMode === 'login' ? '/api/auth/login' : '/api/auth/register';
+
+    try {
+      const res = await fetch(endpoint, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ username: authUsername.trim(), password: authPassword })
+      });
+      const data = await res.json();
+      if (res.ok) {
+        handleAuthSuccess(data);
+        // Reset credentials fields
+        setAuthUsername('');
+        setAuthPassword('');
+      } else {
+        setAuthError(data.error || 'Authentication failed');
+      }
+    } catch (err) {
+      console.error(err);
+      setAuthError('server connection failed');
+    } finally {
+      setIsSubmittingAuth(false);
+    }
+  };
 
   const handleRegisterUsername = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -575,91 +673,113 @@ export default function App() {
   if (!token) {
     return (
       <div className="login-screen">
-        <h1 style={{color: 'white', marginBottom: '24px'}}>Sign in to play</h1>
-        <GoogleLogin
-          onSuccess={credentialResponse => {
-            const userToken = credentialResponse.credential!;
-            localStorage.setItem('token', userToken);
-            setToken(userToken);
-            fetch('/api/auth', {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({ token: userToken })
-            })
-            .then(r => {
-              if (!r.ok) {
-                throw new Error('Auth failed on server');
-              }
-              return r.json();
-            })
-            .then(data => {
-              if (data.token) {
-                localStorage.setItem('token', data.token);
-                setToken(data.token);
-              }
-              if (data.history) {
-                setHistory(prev => {
-                  if (Object.keys(data.history).length === 0) {
-                    localStorage.removeItem('gameHistory');
-                    setViewingIndex(0);
-                    setGamesWon(0);
-                    return {};
-                  }
+        <div className="login-card">
+          <div className="login-logo-container">
+            <img src="/gnomebuddy.png" alt="gnome" className="login-logo" />
+            <h1 className="login-title">5 letter word</h1>
+          </div>
 
-                  const merged = { ...data.history, ...prev };
-                  for (const key of Object.keys(data.history)) {
-                    const numKey = Number(key);
-                    const serverGame = data.history[numKey];
-                    const localGame = prev[numKey];
-                    if (localGame && serverGame) {
-                      if (localGame.guesses.length > serverGame.guesses.length) {
-                        merged[numKey] = localGame;
-                      } else {
-                        merged[numKey] = serverGame;
-                      }
-                    }
+          <div className="auth-mode-tabs">
+            <button 
+              type="button"
+              className={`auth-tab-btn ${authMode === 'login' ? 'active' : ''}`}
+              onClick={() => {
+                setAuthMode('login');
+                setAuthError('');
+              }}
+            >
+              login
+            </button>
+            <button 
+              type="button"
+              className={`auth-tab-btn ${authMode === 'register' ? 'active' : ''}`}
+              onClick={() => {
+                setAuthMode('register');
+                setAuthError('');
+              }}
+            >
+              create account
+            </button>
+          </div>
+
+          <form onSubmit={handleLocalAuth} className="credentials-form">
+            <div className="input-group-field">
+              <label htmlFor="auth-username">username</label>
+              <input
+                id="auth-username"
+                type="text"
+                placeholder="enter username"
+                value={authUsername}
+                onChange={e => setAuthUsername(e.target.value.toLowerCase().replace(/[^a-z0-9_]/g, ''))}
+                maxLength={20}
+                required
+                disabled={isSubmittingAuth}
+              />
+            </div>
+
+            <div className="input-group-field">
+              <label htmlFor="auth-password">password</label>
+              <input
+                id="auth-password"
+                type="password"
+                placeholder={authMode === 'login' ? 'enter password' : 'create secure password (min 6 chars)'}
+                value={authPassword}
+                onChange={e => setAuthPassword(e.target.value)}
+                minLength={6}
+                required
+                disabled={isSubmittingAuth}
+              />
+            </div>
+
+            {authError && <div className="auth-error-banner">{authError}</div>}
+
+            <button type="submit" className="btn btn-primary auth-submit-btn" disabled={isSubmittingAuth}>
+              {isSubmittingAuth ? 'authenticating...' : authMode === 'login' ? 'login' : 'register'}
+            </button>
+          </form>
+
+          <div className="auth-divider">
+            <span>or sign in with</span>
+          </div>
+
+          <div className="google-auth-wrapper">
+            <GoogleLogin
+              onSuccess={credentialResponse => {
+                const userToken = credentialResponse.credential!;
+                localStorage.setItem('token', userToken);
+                setToken(userToken);
+                fetch('/api/auth', {
+                  method: 'POST',
+                  headers: { 'Content-Type': 'application/json' },
+                  body: JSON.stringify({ token: userToken })
+                })
+                .then(r => {
+                  if (!r.ok) {
+                    throw new Error('Auth failed on server');
                   }
-                  
-                  const max = Math.max(0, ...Object.keys(merged).map(Number));
-                  const latestGame = merged[max];
-                  let nextIndex = max;
-                  if (latestGame) {
-                    if (latestGame.date !== todayStr || latestGame.status !== 'playing') {
-                      nextIndex = max + 1;
-                    }
-                  }
-                  setViewingIndex(nextIndex);
-                  
-                  const wins = Object.values(merged).filter((g: any) => g.status === 'won').length;
-                  setGamesWon(wins);
-                  
-                  return merged;
+                  return r.json();
+                })
+                .then(data => {
+                  handleAuthSuccess(data);
+                })
+                .catch(err => {
+                  console.error("Login verification failed", err);
+                  localStorage.removeItem('token');
+                  localStorage.removeItem('username');
+                  localStorage.removeItem('userProfile');
+                  setToken(null);
+                  setUsername(null);
+                  setUserProfile(null);
+                  setAuthError('Google sign in failed');
                 });
-              }
-              if (data.username) {
-                setUsername(data.username);
-                localStorage.setItem('username', data.username);
-              }
-              if (data.user) {
-                setUserProfile(data.user);
-                localStorage.setItem('userProfile', JSON.stringify(data.user));
-              }
-              setIsDev(!!data.isDev);
-            })
-            .catch(err => {
-              console.error("Login verification failed", err);
-              localStorage.removeItem('token');
-              localStorage.removeItem('username');
-              localStorage.removeItem('userProfile');
-              setToken(null);
-              setUsername(null);
-              setUserProfile(null);
-            });
-          }}
-          onError={() => {
-            console.log('Login Failed');
-          }}
-        />
+              }}
+              onError={() => {
+                console.log('Login Failed');
+                setAuthError('Google authentication failed');
+              }}
+            />
+          </div>
+        </div>
       </div>
     );
   }

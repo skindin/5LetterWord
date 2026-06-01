@@ -39,6 +39,7 @@ if (process.env.DATABASE_URL) {
     await pool.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS display_name TEXT`);
     await pool.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS picture TEXT`);
     await pool.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS is_dev BOOLEAN DEFAULT FALSE`);
+    await pool.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS password_hash TEXT`);
     
     // Create relationship table for mutual friendships
     await pool.query(`
@@ -79,6 +80,21 @@ async function verifyGoogleToken(token) {
     console.error("Google token verification failed:", e);
     return null;
   }
+}
+
+// Hash a password using scrypt natively
+function hashPassword(password) {
+  const salt = crypto.randomBytes(16).toString('hex');
+  const hash = crypto.scryptSync(password, salt, 64).toString('hex');
+  return `${salt}:${hash}`;
+}
+
+// Verify a password using scrypt natively
+function verifyPassword(password, storedPasswordHash) {
+  if (!storedPasswordHash || !storedPasswordHash.includes(':')) return false;
+  const [salt, originalHash] = storedPasswordHash.split(':');
+  const hash = crypto.scryptSync(password, salt, 64).toString('hex');
+  return hash === originalHash;
 }
 
 async function getUserFromToken(token) {
@@ -162,6 +178,123 @@ app.post('/api/auth', async (req, res) => {
   } catch (e) {
     console.error(e);
     res.status(500).json({ error: "Database error" });
+  }
+});
+
+app.post('/api/auth/register', async (req, res) => {
+  if (!pool) return res.status(500).json({ error: "Database not configured" });
+  
+  const { username, password } = req.body;
+  
+  // Validate username format
+  const cleanUsername = username?.trim().toLowerCase().replace(/[^a-z0-9_]/g, '');
+  if (!cleanUsername || cleanUsername.length < 3 || cleanUsername.length > 20) {
+    return res.status(400).json({ error: "Username must be 3-20 characters, lowercase alphanumeric or underscore." });
+  }
+  
+  if (username !== cleanUsername) {
+    return res.status(400).json({ error: "Username contains invalid characters." });
+  }
+
+  // Validate password length
+  if (!password || password.length < 6) {
+    return res.status(400).json({ error: "Password must be at least 6 characters." });
+  }
+
+  try {
+    // Check if username is already taken
+    const checkUser = await pool.query('SELECT google_id FROM users WHERE username = $1', [cleanUsername]);
+    if (checkUser.rows.length > 0) {
+      return res.status(400).json({ error: "Username is already taken." });
+    }
+
+    const localId = `local:${crypto.randomUUID()}`;
+    const passwordHash = hashPassword(password);
+    
+    // Create a default premium high-contrast SVG letter avatar
+    const initial = cleanUsername.charAt(0).toUpperCase();
+    const defaultPic = `data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100" width="100" height="100"><circle cx="50" cy="50" r="50" fill="%2310b981"/><text x="50" y="55" dominant-baseline="middle" text-anchor="middle" font-family="'Outfit', sans-serif" font-weight="800" font-size="50" fill="%23ffffff">${initial}</text></svg>`;
+
+    // Insert new local user
+    const userRes = await pool.query(`
+      INSERT INTO users (google_id, username, display_name, password_hash, picture)
+      VALUES ($1, $2, $3, $4, $5)
+      RETURNING google_id, email, username, display_name, picture, is_dev, history
+    `, [localId, cleanUsername, cleanUsername, passwordHash, defaultPic]);
+
+    const user = userRes.rows[0];
+    const sessionToken = crypto.randomBytes(32).toString('hex');
+    
+    // Create session
+    await pool.query(`
+      INSERT INTO sessions (session_token, google_id)
+      VALUES ($1, $2)
+    `, [sessionToken, user.google_id]);
+
+    res.json({
+      token: sessionToken,
+      history: sanitizeHistory(user.history),
+      username: user.username,
+      isDev: user.is_dev,
+      user: { name: user.display_name, picture: user.picture }
+    });
+
+  } catch (e) {
+    console.error("Registration error:", e);
+    res.status(500).json({ error: "Database error during registration." });
+  }
+});
+
+app.post('/api/auth/login', async (req, res) => {
+  if (!pool) return res.status(500).json({ error: "Database not configured" });
+  
+  const { username, password } = req.body;
+  if (!username || !password) {
+    return res.status(400).json({ error: "Username and password required." });
+  }
+
+  const cleanUsername = username.trim().toLowerCase();
+
+  try {
+    const userRes = await pool.query(`
+      SELECT google_id, email, username, display_name, password_hash, picture, is_dev, history
+      FROM users
+      WHERE username = $1
+    `, [cleanUsername]);
+
+    if (userRes.rows.length === 0) {
+      return res.status(400).json({ error: "Invalid username or password." });
+    }
+
+    const user = userRes.rows[0];
+    
+    // If the account was registered with Google and has no local credentials
+    if (!user.password_hash) {
+      return res.status(400).json({ error: "This account is configured with Google. Please use Google Sign-In." });
+    }
+
+    const isMatch = verifyPassword(password, user.password_hash);
+    if (!isMatch) {
+      return res.status(400).json({ error: "Invalid username or password." });
+    }
+
+    const sessionToken = crypto.randomBytes(32).toString('hex');
+    await pool.query(`
+      INSERT INTO sessions (session_token, google_id)
+      VALUES ($1, $2)
+    `, [sessionToken, user.google_id]);
+
+    res.json({
+      token: sessionToken,
+      history: sanitizeHistory(user.history),
+      username: user.username,
+      isDev: user.is_dev,
+      user: { name: user.display_name, picture: user.picture }
+    });
+
+  } catch (e) {
+    console.error("Login error:", e);
+    res.status(500).json({ error: "Database error during login." });
   }
 });
 
