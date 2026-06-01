@@ -692,7 +692,10 @@ export default function App() {
       <div className="login-screen">
         <div className="login-card">
           <div className="login-logo-container">
-            <img src="/favicon.svg" alt="logo" className="login-logo" />
+            <svg className="login-logo" viewBox="0 0 512 512" width="72" height="72">
+              <rect width="512" height="512" rx="128" fill="#10b981"/>
+              <text x="50%" y="54%" dominant-baseline="middle" text-anchor="middle" font-family="'Outfit', sans-serif" font-weight="800" font-size="280" fill="#ffffff">5</text>
+            </svg>
             <h1 className="login-title">5 letter word</h1>
           </div>
 
