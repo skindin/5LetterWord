@@ -144,6 +144,7 @@ export default function App() {
   const [authPassword, setAuthPassword] = useState('');
   const [authError, setAuthError] = useState('');
   const [isSubmittingAuth, setIsSubmittingAuth] = useState(false);
+  const [qrCodeImageSrc, setQrCodeImageSrc] = useState('');
   
   const countdown = useCountdownToMidnightCT();
   const todayStr = getChicagoTodayStr();
@@ -162,6 +163,22 @@ export default function App() {
       .then((data: string[]) => setValidWords(new Set(data)))
       .catch(err => console.error(err));
   }, []);
+
+  // Pre-load and cache the QR code image the moment the user logs in / username is loaded
+  useEffect(() => {
+    if (username) {
+      const addFriendUrl = `https://5letterword.gnomebuddygames.com/?friend=${encodeURIComponent(username)}`;
+      const qrUrl = `https://api.qrserver.com/v1/create-qr-code/?size=250x250&data=${encodeURIComponent(addFriendUrl)}`;
+      
+      // Trigger background browser pre-fetch
+      const img = new Image();
+      img.src = qrUrl;
+      
+      setQrCodeImageSrc(qrUrl);
+    } else {
+      setQrCodeImageSrc('');
+    }
+  }, [username]);
 
   // Restore session from localStorage on mount
   useEffect(() => {
@@ -675,7 +692,7 @@ export default function App() {
       <div className="login-screen">
         <div className="login-card">
           <div className="login-logo-container">
-            <img src="/gnomebuddy.png" alt="gnome" className="login-logo" />
+            <img src="/favicon.svg" alt="logo" className="login-logo" />
             <h1 className="login-title">5 letter word</h1>
           </div>
 
@@ -929,6 +946,7 @@ export default function App() {
         isOpen={isQRCodeOpen} 
         onClose={() => setIsQRCodeOpen(false)} 
         username={username || ''} 
+        qrCodeImageSrc={qrCodeImageSrc}
       />
 
       <CalendarModal
