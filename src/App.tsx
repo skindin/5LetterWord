@@ -335,8 +335,14 @@ export default function App() {
     const friendParam = params.get('friend');
     if (friendParam) {
       setFriendToAccept(friendParam);
+      sessionStorage.setItem('pendingFriendRequest', friendParam);
       // Clean up the URL query parameters immediately
       window.history.replaceState({}, document.title, window.location.pathname);
+    } else {
+      const savedFriend = sessionStorage.getItem('pendingFriendRequest');
+      if (savedFriend) {
+        setFriendToAccept(savedFriend);
+      }
     }
   }, []);
 
@@ -347,6 +353,7 @@ export default function App() {
         setIsAcceptFriendOpen(true);
       } else {
         setFriendToAccept(null);
+        sessionStorage.removeItem('pendingFriendRequest');
       }
     }
   }, [token, username, friendToAccept]);
@@ -480,17 +487,20 @@ export default function App() {
         showMessage(`you are now friends with @${friendToAccept}!`);
         setIsAcceptFriendOpen(false);
         setFriendToAccept(null);
+        sessionStorage.removeItem('pendingFriendRequest');
         setCurrentView('social');
       } else {
         showMessage(data.error || 'could not add friend');
         setIsAcceptFriendOpen(false);
         setFriendToAccept(null);
+        sessionStorage.removeItem('pendingFriendRequest');
       }
     } catch (err) {
       console.error(err);
       showMessage('network error occurred');
       setIsAcceptFriendOpen(false);
       setFriendToAccept(null);
+      sessionStorage.removeItem('pendingFriendRequest');
     }
   };
 
@@ -981,6 +991,7 @@ export default function App() {
         onClose={() => {
           setIsAcceptFriendOpen(false);
           setFriendToAccept(null);
+          sessionStorage.removeItem('pendingFriendRequest');
         }}
       />
 
