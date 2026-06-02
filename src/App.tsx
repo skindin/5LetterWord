@@ -687,152 +687,6 @@ export default function App() {
   // We can calculate games played by counting non-playing games in history, or just tracking the max index visited.
   const gamesPlayed = Object.values(history).filter(g => g.status !== 'playing').length;
 
-  if (!token) {
-    return (
-      <div className="login-screen">
-        <div className="login-card">
-          <div className="login-logo-container">
-            <svg className="login-logo" viewBox="0 0 512 512" width="72" height="72">
-              <rect width="512" height="512" rx="128" fill="#10b981"/>
-              <text x="50%" y="54%" dominant-baseline="middle" text-anchor="middle" font-family="'Outfit', sans-serif" font-weight="800" font-size="280" fill="#ffffff">5</text>
-            </svg>
-            <h1 className="login-title">5 letter word</h1>
-          </div>
-
-          <div className="auth-mode-tabs">
-            <button 
-              type="button"
-              className={`auth-tab-btn ${authMode === 'login' ? 'active' : ''}`}
-              onClick={() => {
-                setAuthMode('login');
-                setAuthError('');
-              }}
-            >
-              login
-            </button>
-            <button 
-              type="button"
-              className={`auth-tab-btn ${authMode === 'register' ? 'active' : ''}`}
-              onClick={() => {
-                setAuthMode('register');
-                setAuthError('');
-              }}
-            >
-              create account
-            </button>
-          </div>
-
-          <form onSubmit={handleLocalAuth} className="credentials-form">
-            <div className="input-group-field">
-              <label htmlFor="auth-username">username</label>
-              <input
-                id="auth-username"
-                type="text"
-                placeholder="enter username"
-                value={authUsername}
-                onChange={e => setAuthUsername(e.target.value.toLowerCase().replace(/[^a-z0-9_]/g, ''))}
-                maxLength={20}
-                required
-                disabled={isSubmittingAuth}
-              />
-            </div>
-
-            <div className="input-group-field">
-              <label htmlFor="auth-password">password</label>
-              <input
-                id="auth-password"
-                type="password"
-                placeholder={authMode === 'login' ? 'enter password' : 'create secure password (min 6 chars)'}
-                value={authPassword}
-                onChange={e => setAuthPassword(e.target.value)}
-                minLength={6}
-                required
-                disabled={isSubmittingAuth}
-              />
-            </div>
-
-            {authError && <div className="auth-error-banner">{authError}</div>}
-
-            <button type="submit" className="btn btn-primary auth-submit-btn" disabled={isSubmittingAuth}>
-              {isSubmittingAuth ? 'authenticating...' : authMode === 'login' ? 'login' : 'register'}
-            </button>
-          </form>
-
-          <div className="auth-divider">
-            <span>or sign in with</span>
-          </div>
-
-          <div className="google-auth-wrapper">
-            <GoogleLogin
-              onSuccess={credentialResponse => {
-                const userToken = credentialResponse.credential!;
-                localStorage.setItem('token', userToken);
-                setToken(userToken);
-                fetch('/api/auth', {
-                  method: 'POST',
-                  headers: { 'Content-Type': 'application/json' },
-                  body: JSON.stringify({ token: userToken })
-                })
-                .then(r => {
-                  if (!r.ok) {
-                    throw new Error('Auth failed on server');
-                  }
-                  return r.json();
-                })
-                .then(data => {
-                  handleAuthSuccess(data);
-                })
-                .catch(err => {
-                  console.error("Login verification failed", err);
-                  localStorage.removeItem('token');
-                  localStorage.removeItem('username');
-                  localStorage.removeItem('userProfile');
-                  setToken(null);
-                  setUsername(null);
-                  setUserProfile(null);
-                  setAuthError('Google sign in failed');
-                });
-              }}
-              onError={() => {
-                console.log('Login Failed');
-                setAuthError('Google authentication failed');
-              }}
-            />
-          </div>
-        </div>
-      </div>
-    );
-  }
-
-  if (!username) {
-    return (
-      <div className="username-setup-screen">
-        <div className="setup-card">
-          <h2>create your username</h2>
-          <p>choose a unique username to save your stats and play with friends!</p>
-          <form onSubmit={handleRegisterUsername} className="setup-form">
-            <div className="input-group">
-              <span className="prefix">@</span>
-              <input 
-                type="text" 
-                placeholder="username" 
-                value={chosenUsername} 
-                onChange={e => setChosenUsername(e.target.value.toLowerCase().replace(/[^a-z0-9_]/g, ''))}
-                maxLength={20}
-                required
-              />
-            </div>
-            <p className="setup-hint">3-20 characters. lowercase letters, numbers, or underscores only.</p>
-            {setupError && <div className="setup-error">{setupError}</div>}
-            <button type="submit" className="btn btn-primary" disabled={isSettingUsername}>
-              {isSettingUsername ? 'saving...' : 'confirm username'}
-            </button>
-          </form>
-        </div>
-      </div>
-    );
-  }
-
   return (
     <>
       {message && (
@@ -840,102 +694,244 @@ export default function App() {
           <div className="message">{message}</div>
         </div>
       )}
-      
-      <Header 
-        gamesWon={gamesWon} 
-        gamesPlayed={gamesPlayed} 
-        onOpenStats={() => setIsStatsOpen(true)}
-        onOpenCalendar={() => setCalendarTarget('self')}
-        onSignOut={handleSignOut}
-      />
 
-      <div className="tab-navigation">
-        <button 
-          className={`tab-btn ${currentView === 'game' ? 'active' : ''}`}
-          onClick={() => setCurrentView('game')}
-        >
-          game
-        </button>
-        <button 
-          className={`tab-btn ${currentView === 'social' ? 'active' : ''}`}
-          onClick={() => setCurrentView('social')}
-        >
-          social
-        </button>
-        <a 
-          href="https://gnomebuddygames.com" 
-          target="_blank" 
-          rel="noopener noreferrer" 
-          className="tab-btn other-games-tab"
-        >
-          <img src="/gnomebuddy.png" alt="gnome" className="other-games-icon" />
-          other games
-        </a>
-      </div>
-      
-      {currentView === 'game' ? (
-        <main>
-          {formattedDateStr && (
-            <div className="game-header">
-              {formattedDateStr}, <strong>{wordNumStr}</strong>
-              {activeDate === todayStr ? ` - ${countdown} until next word list` : ' - view only'}
-            </div>
-          )}
-          
-          <div className="grid-nav-wrapper">
-            <button 
-              className={`nav-button ${isLeftDisabled ? 'disabled' : ''}`} 
-              onClick={handlePrev}
-              disabled={isLeftDisabled}
-            >
-              <svg viewBox="0 0 24 24" width="24" height="24">
-                <polygon points="15,6 7,12 15,18" stroke="currentColor" strokeWidth="3" strokeLinejoin="round" fill="currentColor" />
+      {!token ? (
+        <div className="login-screen">
+          <div className="login-card">
+            <div className="login-logo-container">
+              <svg className="login-logo" viewBox="0 0 512 512" width="72" height="72">
+                <rect width="512" height="512" rx="128" fill="#10b981"/>
+                <text x="50%" y="54%" dominant-baseline="middle" text-anchor="middle" font-family="'Outfit', sans-serif" font-weight="800" font-size="280" fill="#ffffff">5</text>
               </svg>
-            </button>
-            
-            <div className="grid-content">
-              <Grid 
-                guesses={guesses}
-                currentGuess={currentGuess}
-                targetWord={targetWord}
-                currentRow={guesses.length}
-                gameStatus={gameStatus as any}
-                isShaking={isShaking}
+              <h1 className="login-title">5 letter word</h1>
+            </div>
+
+            <div className="auth-mode-tabs">
+              <button 
+                type="button"
+                className={`auth-tab-btn ${authMode === 'login' ? 'active' : ''}`}
+                onClick={() => {
+                  setAuthMode('login');
+                  setAuthError('');
+                }}
+              >
+                login
+              </button>
+              <button 
+                type="button"
+                className={`auth-tab-btn ${authMode === 'register' ? 'active' : ''}`}
+                onClick={() => {
+                  setAuthMode('register');
+                  setAuthError('');
+                }}
+              >
+                create account
+              </button>
+            </div>
+
+            <form onSubmit={handleLocalAuth} className="credentials-form">
+              <div className="input-group-field">
+                <label htmlFor="auth-username">username</label>
+                <input
+                  id="auth-username"
+                  type="text"
+                  placeholder="enter username"
+                  value={authUsername}
+                  onChange={e => setAuthUsername(e.target.value.toLowerCase().replace(/[^a-z0-9_]/g, ''))}
+                  maxLength={20}
+                  required
+                  disabled={isSubmittingAuth}
+                />
+              </div>
+
+              <div className="input-group-field">
+                <label htmlFor="auth-password">password</label>
+                <input
+                  id="auth-password"
+                  type="password"
+                  placeholder={authMode === 'login' ? 'enter password' : 'create secure password (min 6 chars)'}
+                  value={authPassword}
+                  onChange={e => setAuthPassword(e.target.value)}
+                  minLength={6}
+                  required
+                  disabled={isSubmittingAuth}
+                />
+              </div>
+
+              {authError && <div className="auth-error-banner">{authError}</div>}
+
+              <button type="submit" className="btn btn-primary auth-submit-btn" disabled={isSubmittingAuth}>
+                {isSubmittingAuth ? 'authenticating...' : authMode === 'login' ? 'login' : 'register'}
+              </button>
+            </form>
+
+            <div className="auth-divider">
+              <span>or sign in with</span>
+            </div>
+
+            <div className="google-auth-wrapper">
+              <GoogleLogin
+                onSuccess={credentialResponse => {
+                  const userToken = credentialResponse.credential!;
+                  localStorage.setItem('token', userToken);
+                  setToken(userToken);
+                  fetch('/api/auth', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ token: userToken })
+                  })
+                  .then(r => {
+                    if (!r.ok) {
+                      throw new Error('Auth failed on server');
+                    }
+                    return r.json();
+                  })
+                  .then(data => {
+                    handleAuthSuccess(data);
+                  })
+                  .catch(err => {
+                    console.error("Login verification failed", err);
+                    localStorage.removeItem('token');
+                    localStorage.removeItem('username');
+                    localStorage.removeItem('userProfile');
+                    setToken(null);
+                    setUsername(null);
+                    setUserProfile(null);
+                    setAuthError('Google sign in failed');
+                  });
+                }}
+                onError={() => {
+                  console.log('Login Failed');
+                  setAuthError('Google authentication failed');
+                }}
               />
             </div>
-
-            <button 
-              className={`nav-button ${isRightDisabled ? 'disabled' : ''} ${shouldHighlightRight ? 'highlight' : ''}`} 
-              onClick={handleNext}
-              disabled={isRightDisabled}
-            >
-              <svg viewBox="0 0 24 24" width="24" height="24">
-                <polygon points="9,6 17,12 9,18" stroke="currentColor" strokeWidth="3" strokeLinejoin="round" fill="currentColor" />
-              </svg>
-            </button>
           </div>
-          
-          <div className="legend">
-            <div className="legend-item"><span className="tile-mini correct"></span> right place</div>
-            <div className="legend-item"><span className="tile-mini present"></span> wrong place</div>
-            <div className="legend-item"><span className="tile-mini absent"></span> not in word</div>
+        </div>
+      ) : !username ? (
+        <div className="username-setup-screen">
+          <div className="setup-card">
+            <h2>create your username</h2>
+            <p>choose a unique username to save your stats and play with friends!</p>
+            <form onSubmit={handleRegisterUsername} className="setup-form">
+              <div className="input-group">
+                <span className="prefix">@</span>
+                <input 
+                  type="text" 
+                  placeholder="username" 
+                  value={chosenUsername} 
+                  onChange={e => setChosenUsername(e.target.value.toLowerCase().replace(/[^a-z0-9_]/g, ''))}
+                  maxLength={20}
+                  required
+                />
+              </div>
+              <p className="setup-hint">3-20 characters. lowercase letters, numbers, or underscores only.</p>
+              {setupError && <div className="setup-error">{setupError}</div>}
+              <button type="submit" className="btn btn-primary" disabled={isSettingUsername}>
+                {isSettingUsername ? 'saving...' : 'confirm username'}
+              </button>
+            </form>
           </div>
-          
-          <Keyboard 
-            onKeyPress={onKeyPress}
-            guesses={guesses}
-            targetWord={targetWord}
-          />
-        </main>
+        </div>
       ) : (
-        <SocialPage 
-          token={token} 
-          currentUsername={username || ''} 
-          currentUserProfile={userProfile || { name: '', picture: '' }} 
-          currentDate={activeDate}
-          onOpenQRCode={() => setIsQRCodeOpen(true)}
-          onOpenFriendCalendar={(friend) => setCalendarTarget(friend)}
-        />
+        <>
+          <Header 
+            gamesWon={gamesWon} 
+            gamesPlayed={gamesPlayed} 
+            onOpenStats={() => setIsStatsOpen(true)}
+            onOpenCalendar={() => setCalendarTarget('self')}
+            onSignOut={handleSignOut}
+          />
+
+          <div className="tab-navigation">
+            <button 
+              className={`tab-btn ${currentView === 'game' ? 'active' : ''}`}
+              onClick={() => setCurrentView('game')}
+            >
+              game
+            </button>
+            <button 
+              className={`tab-btn ${currentView === 'social' ? 'active' : ''}`}
+              onClick={() => setCurrentView('social')}
+            >
+              social
+            </button>
+            <a 
+              href="https://gnomebuddygames.com" 
+              target="_blank" 
+              rel="noopener noreferrer" 
+              className="tab-btn other-games-tab"
+            >
+              <img src="/gnomebuddy.png" alt="gnome" className="other-games-icon" />
+              other games
+            </a>
+          </div>
+          
+          {currentView === 'game' ? (
+            <main>
+              {formattedDateStr && (
+                <div className="game-header">
+                  {formattedDateStr}, <strong>{wordNumStr}</strong>
+                  {activeDate === todayStr ? ` - ${countdown} until next word list` : ' - view only'}
+                </div>
+              )}
+              
+              <div className="grid-nav-wrapper">
+                <button 
+                  className={`nav-button ${isLeftDisabled ? 'disabled' : ''}`} 
+                  onClick={handlePrev}
+                  disabled={isLeftDisabled}
+                >
+                  <svg viewBox="0 0 24 24" width="24" height="24">
+                    <polygon points="15,6 7,12 15,18" stroke="currentColor" strokeWidth="3" strokeLinejoin="round" fill="currentColor" />
+                  </svg>
+                </button>
+                
+                <div className="grid-content">
+                  <Grid 
+                    guesses={guesses}
+                    currentGuess={currentGuess}
+                    targetWord={targetWord}
+                    currentRow={guesses.length}
+                    gameStatus={gameStatus as any}
+                    isShaking={isShaking}
+                  />
+                </div>
+
+                <button 
+                  className={`nav-button ${isRightDisabled ? 'disabled' : ''} ${shouldHighlightRight ? 'highlight' : ''}`} 
+                  onClick={handleNext}
+                  disabled={isRightDisabled}
+                >
+                  <svg viewBox="0 0 24 24" width="24" height="24">
+                    <polygon points="9,6 17,12 9,18" stroke="currentColor" strokeWidth="3" strokeLinejoin="round" fill="currentColor" />
+                  </svg>
+                </button>
+              </div>
+              
+              <div className="legend">
+                <div className="legend-item"><span className="tile-mini correct"></span> right place</div>
+                <div className="legend-item"><span className="tile-mini present"></span> wrong place</div>
+                <div className="legend-item"><span className="tile-mini absent"></span> not in word</div>
+              </div>
+              
+              <Keyboard 
+                onKeyPress={onKeyPress}
+                guesses={guesses}
+                targetWord={targetWord}
+              />
+            </main>
+          ) : (
+            <SocialPage 
+              token={token} 
+              currentUsername={username || ''} 
+              currentUserProfile={userProfile || { name: '', picture: '' }} 
+              currentDate={activeDate}
+              onOpenQRCode={() => setIsQRCodeOpen(true)}
+              onOpenFriendCalendar={(friend) => setCalendarTarget(friend)}
+            />
+          )}
+        </>
       )}
 
       <StatsModal 

@@ -212,7 +212,7 @@ app.post('/api/auth/register', async (req, res) => {
     const passwordHash = hashPassword(password);
     
     // Create a default premium high-contrast SVG letter avatar
-    const initial = cleanUsername.charAt(0).toUpperCase();
+    const initial = cleanUsername.charAt(0).toLowerCase();
     const defaultPic = `data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100" width="100" height="100"><circle cx="50" cy="50" r="50" fill="%2310b981"/><text x="50" y="55" dominant-baseline="middle" text-anchor="middle" font-family="'Outfit', sans-serif" font-weight="800" font-size="50" fill="%23ffffff">${initial}</text></svg>`;
 
     // Insert new local user
