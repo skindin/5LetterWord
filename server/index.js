@@ -481,15 +481,24 @@ app.post('/api/friends/add', async (req, res) => {
       return res.status(400).json({ error: "you cannot friend yourself." });
     }
 
-    // Order user IDs to ensure a single unique pair representation (user_id_1 < user_id_2)
-    const id1 = user.google_id < targetFriendId ? user.google_id : targetFriendId;
-    const id2 = user.google_id < targetFriendId ? targetFriendId : user.google_id;
+    // Check if friendship already exists in either direction to prevent duplicate rows
+    const existing = await pool.query(`
+      SELECT 1 FROM friendships 
+      WHERE (user_id_1 = $1 AND user_id_2 = $2)
+         OR (user_id_1 = $2 AND user_id_2 = $1)
+    `, [user.google_id, targetFriendId]);
 
-    await pool.query(`
-      INSERT INTO friendships (user_id_1, user_id_2)
-      VALUES ($1, $2)
-      ON CONFLICT DO NOTHING
-    `, [id1, id2]);
+    if (existing.rows.length === 0) {
+      // Order user IDs to ensure a single unique pair representation (user_id_1 < user_id_2)
+      const id1 = user.google_id < targetFriendId ? user.google_id : targetFriendId;
+      const id2 = user.google_id < targetFriendId ? targetFriendId : user.google_id;
+
+      await pool.query(`
+        INSERT INTO friendships (user_id_1, user_id_2)
+        VALUES ($1, $2)
+        ON CONFLICT DO NOTHING
+      `, [id1, id2]);
+    }
 
     res.json({ success: true, friend: { google_id: targetFriendId, username: targetFriendUsername } });
   } catch (e) {
@@ -510,13 +519,12 @@ app.post('/api/friends/remove', async (req, res) => {
   if (!friend_id) return res.status(400).json({ error: "missing friend id." });
 
   try {
-    const id1 = user.google_id < friend_id ? user.google_id : friend_id;
-    const id2 = user.google_id < friend_id ? friend_id : user.google_id;
-
+    // Delete the friendship in either direction to support both ordering styles
     await pool.query(`
       DELETE FROM friendships 
-      WHERE user_id_1 = $1 AND user_id_2 = $2
-    `, [id1, id2]);
+      WHERE (user_id_1 = $1 AND user_id_2 = $2)
+         OR (user_id_1 = $2 AND user_id_2 = $1)
+    `, [user.google_id, friend_id]);
 
     res.json({ success: true });
   } catch (e) {
@@ -534,12 +542,15 @@ app.post('/api/friends/list', async (req, res) => {
   const { user } = result;
 
   try {
+    // Retrieve friends symmetrically, using UNION to prevent duplicate records if they exist in both directions
     const result = await pool.query(`
       SELECT u.google_id AS google_id, u.username, u.display_name, u.picture, u.history
       FROM users u
-      JOIN friendships f ON (f.user_id_1 = u.google_id OR f.user_id_2 = u.google_id)
-      WHERE (f.user_id_1 = $1 OR f.user_id_2 = $1)
-        AND u.google_id != $1
+      WHERE u.google_id IN (
+        SELECT user_id_2 FROM friendships WHERE user_id_1 = $1
+        UNION
+        SELECT user_id_1 FROM friendships WHERE user_id_2 = $1
+      )
     `, [user.google_id]);
     
     const sanitizedFriends = result.rows.map(row => ({
