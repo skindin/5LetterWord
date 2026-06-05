@@ -245,17 +245,13 @@ export const SocialPage: React.FC<SocialPageProps> = ({
       return { played: list.length, won, distribution, maxVal };
     };
 
-    // Group won games by date to find most won in a single day and average won per day
+    // Group won games by date to find most won in a single day
     const winsByDate: Record<string, number> = {};
-    const completedDates = new Set<string>();
     const wonGames = games.filter(g => g.status === 'won');
     
     for (const g of games) {
-      if (g.date) {
-        completedDates.add(g.date);
-        if (g.status === 'won') {
-          winsByDate[g.date] = (winsByDate[g.date] || 0) + 1;
-        }
+      if (g.date && g.status === 'won') {
+        winsByDate[g.date] = (winsByDate[g.date] || 0) + 1;
       }
     }
     
@@ -264,10 +260,6 @@ export const SocialPage: React.FC<SocialPageProps> = ({
       : 0;
       
     const overall = calc(games);
-    const uniqueDaysCount = completedDates.size;
-    const avgWonPerDay = uniqueDaysCount > 0 
-      ? (overall.won / uniqueDaysCount).toFixed(1) 
-      : "0.0";
 
     // Calculate streaks
     const sortedWinDates = Array.from(new Set(wonGames.map(g => g.date))).sort();
@@ -277,7 +269,6 @@ export const SocialPage: React.FC<SocialPageProps> = ({
       today: calc(todayGames),
       overall: overall,
       mostWonInADay,
-      avgWonPerDay,
       currentStreak,
       longestStreak
     };
@@ -474,10 +465,6 @@ export const SocialPage: React.FC<SocialPageProps> = ({
                           <div className="social-stat-box">
                             <span className="val">{stats.mostWonInADay}</span>
                             <span className="lbl">most won</span>
-                          </div>
-                          <div className="social-stat-box">
-                            <span className="val">{stats.avgWonPerDay}</span>
-                            <span className="lbl">avg won</span>
                           </div>
                           <div className="social-stat-box">
                             <span className="val">{stats.longestStreak}</span>

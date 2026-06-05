@@ -99,28 +99,19 @@ export const StatsModal: React.FC<StatsModalProps> = ({ isOpen, onClose, history
   const todayStats = computeStats(todayGames);
   const overallStats = computeStats(allGames);
 
-  // Group won games by date to find most won in a single day and average won per day
+  // Group won games by date to find most won in a single day
   const winsByDate: Record<string, number> = {};
-  const completedDates = new Set<string>();
   const wonGames = allGames.filter(g => g.status === 'won');
   
   for (const g of allGames) {
-    if (g.date) {
-      completedDates.add(g.date);
-      if (g.status === 'won') {
-        winsByDate[g.date] = (winsByDate[g.date] || 0) + 1;
-      }
+    if (g.date && g.status === 'won') {
+      winsByDate[g.date] = (winsByDate[g.date] || 0) + 1;
     }
   }
   
   const mostWonInADay = Object.keys(winsByDate).length > 0 
     ? Math.max(...Object.values(winsByDate)) 
     : 0;
-    
-  const uniqueDaysCount = completedDates.size;
-  const avgWonPerDay = uniqueDaysCount > 0 
-    ? (overallStats.won / uniqueDaysCount).toFixed(1) 
-    : "0.0";
 
   // Calculate streaks
   const sortedWinDates = Array.from(new Set(wonGames.map(g => g.date))).sort();
@@ -164,7 +155,6 @@ export const StatsModal: React.FC<StatsModalProps> = ({ isOpen, onClose, history
           <div className="stat-box"><div className="stat-box-val">{overallStats.played}</div>played</div>
           <div className="stat-box"><div className="stat-box-val">{Math.round((overallStats.won / Math.max(overallStats.played, 1)) * 100)}%</div>win %</div>
           <div className="stat-box"><div className="stat-box-val">{mostWonInADay}</div>most won/day</div>
-          <div className="stat-box"><div className="stat-box-val">{avgWonPerDay}</div>avg won/day</div>
           <div className="stat-box"><div className="stat-box-val">{longestStreak}</div>longest streak</div>
         </div>
         {renderDistribution(overallStats)}
