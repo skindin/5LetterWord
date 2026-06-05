@@ -417,7 +417,7 @@ main {
   display: flex;
   justify-content: center;
   flex-wrap: wrap;
-  gap: 12px 24px;
+  gap: 12px 12px;
   margin: 16px 0;
 }
 
@@ -427,7 +427,7 @@ main {
   align-items: center;
   font-size: 0.8rem;
   color: #a1a1aa;
-  min-width: 65px;
+  min-width: 60px;
   text-align: center;
 }
 
