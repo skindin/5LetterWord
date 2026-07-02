@@ -357,7 +357,7 @@ app.post('/api/auth/forgot-password', async (req, res) => {
 
   try {
     const userRes = await pool.query(`
-      SELECT google_id, username, display_name, email 
+      SELECT google_id, username, display_name, email, password_hash 
       FROM users 
       WHERE LOWER(email) = $1
     `, [cleanEmail]);
@@ -368,6 +368,10 @@ app.post('/api/auth/forgot-password', async (req, res) => {
     }
 
     const user = userRes.rows[0];
+
+    if (!user.password_hash) {
+      return res.status(400).json({ error: "This email address is registered using Google Sign-In. Please use Google Sign-In to log in." });
+    }
 
     // Generate secure token
     const token = crypto.randomBytes(32).toString('hex');
@@ -1629,7 +1633,7 @@ app.post('/api/dev/send-email', async (req, res) => {
 
     try {
         // Query user info
-        const userRes = await pool.query('SELECT google_id, email, display_name, history FROM users WHERE google_id = $1', [targetGoogleId]);
+        const userRes = await pool.query('SELECT google_id, email, display_name, history, password_hash FROM users WHERE google_id = $1', [targetGoogleId]);
         if (userRes.rows.length === 0) {
             return res.status(404).json({ error: "User not found" });
         }
@@ -1637,6 +1641,10 @@ app.post('/api/dev/send-email', async (req, res) => {
         const user = userRes.rows[0];
         if (!user.email) {
             return res.status(400).json({ error: "User does not have an email address" });
+        }
+
+        if (emailType === 'password_reset' && !user.password_hash) {
+            return res.status(400).json({ error: "Cannot send password reset: User is registered via Google and does not have a local password." });
         }
 
         const todayDateStr = formatInTimeZone(new Date(), 'America/Chicago', 'yyyy-MM-dd');
