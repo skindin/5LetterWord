@@ -49,6 +49,7 @@ if (process.env.DATABASE_URL) {
     await pool.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS is_dev BOOLEAN DEFAULT FALSE`);
     await pool.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS password_hash TEXT`);
     await pool.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS email_consent BOOLEAN DEFAULT FALSE`);
+    await pool.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS skip_email_prompt BOOLEAN DEFAULT FALSE`);
     
     // Create relationship table for mutual friendships
     await pool.query(`
@@ -113,7 +114,7 @@ async function getUserFromToken(token, emailConsent = null) {
   try {
     // 1. Try to find session in our database
     const sessionRes = await pool.query(`
-      SELECT u.google_id, u.email, u.username, u.display_name, u.picture, u.is_dev, u.history, u.email_consent
+      SELECT u.google_id, u.email, u.username, u.display_name, u.picture, u.is_dev, u.history, u.email_consent, u.skip_email_prompt
       FROM sessions s
       JOIN users u ON s.google_id = u.google_id
       WHERE s.session_token = $1
@@ -136,7 +137,7 @@ async function getUserFromToken(token, emailConsent = null) {
         display_name = EXCLUDED.display_name,
         picture = EXCLUDED.picture,
         email_consent = users.email_consent OR EXCLUDED.email_consent
-      RETURNING google_id, email, username, display_name, picture, is_dev, history, email_consent
+      RETURNING google_id, email, username, display_name, picture, is_dev, history, email_consent, skip_email_prompt
     `, [payload.sub, payload.email, payload.name, payload.picture, emailConsent === true]);
 
     const user = userRes.rows[0];
@@ -184,7 +185,8 @@ app.post('/api/auth', async (req, res) => {
       username: user.username,
       isDev: user.is_dev,
       emailConsent: user.email_consent,
-      user: { name: user.display_name, picture: user.picture }
+      skipEmailPrompt: user.skip_email_prompt,
+      user: { name: user.display_name, picture: user.picture, email: user.email }
     });
   } catch (e) {
     console.error(e);
@@ -195,7 +197,12 @@ app.post('/api/auth', async (req, res) => {
 app.post('/api/auth/register', async (req, res) => {
   if (!pool) return res.status(500).json({ error: "Database not configured" });
   
-  const { username, password, emailConsent } = req.body;
+  const { username, password, emailConsent, email } = req.body;
+  
+  const cleanEmail = email?.trim() || null;
+  if (cleanEmail && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(cleanEmail)) {
+    return res.status(400).json({ error: "Invalid email format." });
+  }
   
   // Validate username format
   const cleanUsername = username?.trim().toLowerCase().replace(/[^a-z0-9_]/g, '');
@@ -228,10 +235,10 @@ app.post('/api/auth/register', async (req, res) => {
 
     // Insert new local user
     const userRes = await pool.query(`
-      INSERT INTO users (google_id, username, display_name, password_hash, picture, email_consent)
-      VALUES ($1, $2, $3, $4, $5, $6)
-      RETURNING google_id, email, username, display_name, picture, is_dev, history, email_consent
-    `, [localId, cleanUsername, cleanUsername, passwordHash, defaultPic, emailConsent === true]);
+      INSERT INTO users (google_id, username, display_name, password_hash, picture, email_consent, email)
+      VALUES ($1, $2, $3, $4, $5, $6, $7)
+      RETURNING google_id, email, username, display_name, picture, is_dev, history, email_consent, skip_email_prompt
+    `, [localId, cleanUsername, cleanUsername, passwordHash, defaultPic, emailConsent === true, cleanEmail]);
 
     const user = userRes.rows[0];
     const sessionToken = crypto.randomBytes(32).toString('hex');
@@ -248,7 +255,8 @@ app.post('/api/auth/register', async (req, res) => {
       username: user.username,
       isDev: user.is_dev,
       emailConsent: user.email_consent,
-      user: { name: user.display_name, picture: user.picture }
+      skipEmailPrompt: user.skip_email_prompt,
+      user: { name: user.display_name, picture: user.picture, email: user.email }
     });
 
   } catch (e) {
@@ -269,7 +277,7 @@ app.post('/api/auth/login', async (req, res) => {
 
   try {
     const userRes = await pool.query(`
-      SELECT google_id, email, username, display_name, password_hash, picture, is_dev, history, email_consent
+      SELECT google_id, email, username, display_name, password_hash, picture, is_dev, history, email_consent, skip_email_prompt
       FROM users
       WHERE username = $1
     `, [cleanUsername]);
@@ -302,7 +310,8 @@ app.post('/api/auth/login', async (req, res) => {
       username: user.username,
       isDev: user.is_dev,
       emailConsent: user.email_consent,
-      user: { name: user.display_name, picture: user.picture }
+      skipEmailPrompt: user.skip_email_prompt,
+      user: { name: user.display_name, picture: user.picture, email: user.email }
     });
 
   } catch (e) {
@@ -891,6 +900,56 @@ app.get('/api/word', (req, res) => {
 // Actually, let's just send the whole targetWords list so the client can validate guesses against it.
 app.get('/api/valid-words', (req, res) => {
     res.json(validWords);
+});
+
+app.post('/api/user/link-email', async (req, res) => {
+  if (!pool) return res.status(500).json({ error: "Database not configured" });
+  
+  const result = await getUserFromToken(req.body.token);
+  if (!result) return res.status(401).json({ error: "Invalid token" });
+  
+  const { user } = result;
+  const { email } = req.body;
+  
+  const cleanEmail = email?.trim();
+  if (!cleanEmail || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(cleanEmail)) {
+    return res.status(400).json({ error: "Invalid email format." });
+  }
+  
+  try {
+    await pool.query(`
+      UPDATE users 
+      SET email = $1, email_consent = TRUE
+      WHERE google_id = $2
+    `, [cleanEmail, user.google_id]);
+    
+    res.json({ success: true, email: cleanEmail });
+  } catch (e) {
+    console.error("Link email error:", e);
+    res.status(500).json({ error: "Database error while linking email." });
+  }
+});
+
+app.post('/api/user/skip-email-prompt', async (req, res) => {
+  if (!pool) return res.status(500).json({ error: "Database not configured" });
+  
+  const result = await getUserFromToken(req.body.token);
+  if (!result) return res.status(401).json({ error: "Invalid token" });
+  
+  const { user } = result;
+  
+  try {
+    await pool.query(`
+      UPDATE users 
+      SET skip_email_prompt = TRUE
+      WHERE google_id = $1
+    `, [user.google_id]);
+    
+    res.json({ success: true });
+  } catch (e) {
+    console.error("Skip email prompt error:", e);
+    res.status(500).json({ error: "Database error while updating preferences." });
+  }
 });
 
 async function requireDev(req, res) {

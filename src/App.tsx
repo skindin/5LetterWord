@@ -125,7 +125,7 @@ export default function App() {
   
   // Social & Username States
   const [username, setUsername] = useState<string | null>(null);
-  const [userProfile, setUserProfile] = useState<{ name: string; picture: string } | null>(null);
+  const [userProfile, setUserProfile] = useState<{ name: string; picture: string; email?: string } | null>(null);
   const [isDev, setIsDev] = useState(false);
   const [friendBoardView, setFriendBoardView] = useState<{
     guesses: string[]; targetWord: string; status: 'won' | 'lost' | 'playing'; index: number; seqIndex?: number;
@@ -145,6 +145,10 @@ export default function App() {
   const [authError, setAuthError] = useState('');
   const [isSubmittingAuth, setIsSubmittingAuth] = useState(false);
   const [emailConsent, setEmailConsent] = useState(false);
+  const [authEmail, setAuthEmail] = useState('');
+  const [showLinkEmailModal, setShowLinkEmailModal] = useState(false);
+  const [linkEmailInput, setLinkEmailInput] = useState('');
+  const [skipEmailPrompt, setSkipEmailPrompt] = useState(false);
   const [qrCodeImageSrc, setQrCodeImageSrc] = useState('');
   
   const countdown = useCountdownToMidnightCT();
@@ -374,6 +378,14 @@ export default function App() {
     }
     setIsDev(!!data.isDev);
 
+    if (data.skipEmailPrompt !== undefined) {
+      setSkipEmailPrompt(!!data.skipEmailPrompt);
+    }
+
+    if (!data.user?.email && !data.skipEmailPrompt && data.username) {
+      setShowLinkEmailModal(true);
+    }
+
     if (data.history) {
       setHistory(prev => {
         if (Object.keys(data.history).length === 0) {
@@ -431,7 +443,12 @@ export default function App() {
       const res = await fetch(endpoint, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ username: authUsername.trim(), password: authPassword, emailConsent })
+        body: JSON.stringify({ 
+          username: authUsername.trim(), 
+          password: authPassword, 
+          emailConsent,
+          email: authMode === 'register' ? authEmail : undefined 
+        })
       });
       const data = await res.json();
       if (res.ok) {
@@ -439,6 +456,7 @@ export default function App() {
         // Reset credentials fields
         setAuthUsername('');
         setAuthPassword('');
+        setAuthEmail('');
       } else {
         setAuthError(data.error || 'Authentication failed');
       }
@@ -770,6 +788,24 @@ export default function App() {
               </div>
 
               {authMode === 'register' && (
+                <div className="input-group-field" style={{ marginBottom: '12px' }}>
+                  <label htmlFor="auth-email">email (optional)</label>
+                  <input
+                    id="auth-email"
+                    type="email"
+                    placeholder="enter email address"
+                    value={authEmail}
+                    onChange={e => setAuthEmail(e.target.value)}
+                    disabled={isSubmittingAuth}
+                    style={{ textTransform: 'none' }}
+                  />
+                  <div style={{ fontSize: '0.68rem', color: '#71717a', marginTop: '4px', textTransform: 'none', lineHeight: '1.3' }}>
+                    Suggested for account recovery and daily/weekly notifications.
+                  </div>
+                </div>
+              )}
+
+              {authMode === 'register' && (
                 <div className="auth-consent-container" style={{ display: 'flex', alignItems: 'flex-start', gap: '8px', margin: '12px 0 6px 0' }}>
                   <input
                     id="auth-consent-manual"
@@ -1023,6 +1059,104 @@ export default function App() {
           sessionStorage.removeItem('pendingFriendRequest');
         }}
       />
+
+      {showLinkEmailModal && !skipEmailPrompt && (
+        <div className="modal-overlay" style={{ zIndex: 1000 }}>
+          <div className="modal-content" style={{ maxWidth: '400px', width: '90%', padding: '24px', textAlign: 'center' }}>
+            <h2 style={{ fontSize: '1.48rem', marginBottom: '8px', color: '#f8fafc', fontWeight: '800' }}>Save Your Streak!</h2>
+            <p style={{ fontSize: '0.84rem', color: '#94a3b8', marginBottom: '18px', lineHeight: '1.5' }}>
+              Link an email to receive daily win streak reminders, weekly digests, and enable account recovery.
+            </p>
+            
+            <form onSubmit={async (e) => {
+              e.preventDefault();
+              if (!linkEmailInput.trim()) return;
+              try {
+                const res = await fetch('/api/user/link-email', {
+                  method: 'POST',
+                  headers: { 'Content-Type': 'application/json' },
+                  body: JSON.stringify({ token, email: linkEmailInput.trim() })
+                });
+                const data = await res.json();
+                if (res.ok) {
+                  const updatedProfile = {
+                    name: userProfile?.name || '',
+                    picture: userProfile?.picture || '',
+                    email: data.email
+                  };
+                  setUserProfile(updatedProfile);
+                  localStorage.setItem('userProfile', JSON.stringify(updatedProfile));
+                  setShowLinkEmailModal(false);
+                  setLinkEmailInput('');
+                } else {
+                  alert(data.error || 'Failed to link email');
+                }
+              } catch (err) {
+                console.error(err);
+                alert('Network error while linking email.');
+              }
+            }} style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
+              <div className="input-group-field" style={{ textAlign: 'left' }}>
+                <label htmlFor="modal-email-input" style={{ fontSize: '0.72rem', color: '#94a3b8', fontWeight: 'bold' }}>email address</label>
+                <input
+                  id="modal-email-input"
+                  type="email"
+                  placeholder="enter your email address"
+                  value={linkEmailInput}
+                  onChange={e => setLinkEmailInput(e.target.value)}
+                  required
+                  style={{ width: '100%', textTransform: 'none' }}
+                />
+              </div>
+
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', marginTop: '4px' }}>
+                <button type="submit" className="btn btn-primary" style={{ width: '100%', padding: '10px' }}>
+                  Link Email
+                </button>
+                <div style={{ display: 'flex', gap: '8px' }}>
+                  <button 
+                    type="button" 
+                    className="btn" 
+                    onClick={() => {
+                      setShowLinkEmailModal(false);
+                      setLinkEmailInput('');
+                    }}
+                    style={{ flex: 1, background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.1)', color: '#94a3b8', padding: '8px' }}
+                  >
+                    Maybe Later
+                  </button>
+                  <button 
+                    type="button" 
+                    className="btn" 
+                    onClick={async () => {
+                      try {
+                        const res = await fetch('/api/user/skip-email-prompt', {
+                          method: 'POST',
+                          headers: { 'Content-Type': 'application/json' },
+                          body: JSON.stringify({ token })
+                        });
+                        if (res.ok) {
+                          setSkipEmailPrompt(true);
+                          setShowLinkEmailModal(false);
+                          setLinkEmailInput('');
+                        } else {
+                          alert('Failed to save preference');
+                        }
+                      } catch (err) {
+                        console.error(err);
+                        alert('Network error while saving preferences.');
+                      }
+                    }}
+                    style={{ flex: 1, background: 'rgba(239,68,68,0.1)', border: '1px solid rgba(239,68,68,0.2)', color: '#f87171', padding: '8px' }}
+                  >
+                    Stop Asking
+                  </button>
+                </div>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
 
       {isDev && token && <DevPanel token={token} />}
     </>
