@@ -9,7 +9,7 @@ interface GameState {
 
 interface User {
   google_id: string;
-  email: string;
+  email: string | null;
   username: string | null;
   display_name: string | null;
   history?: Record<number, GameState>;
@@ -333,12 +333,12 @@ export default function DevPanel({ token }: Props) {
           <div className="dev-panel-player-list">
             {users.filter(u => {
               const q = playerSearch.toLowerCase();
-              return !q || (u.display_name || '').toLowerCase().includes(q) || (u.username || '').toLowerCase().includes(q) || u.email.toLowerCase().includes(q);
+              return !q || (u.display_name || '').toLowerCase().includes(q) || (u.username || '').toLowerCase().includes(q) || (u.email || '').toLowerCase().includes(q);
             }).map(u => (
               <div key={u.google_id} className="dev-panel-player-wrapper" style={{ display: 'flex', flexDirection: 'column', background: 'rgba(255,255,255,0.03)', borderRadius: '8px', padding: '6px', marginBottom: '4px' }}>
                 <div className="dev-panel-player" style={{ background: 'none', padding: 0 }}>
                   <div className="dev-panel-player-info">
-                    <span className="dev-panel-player-name">{u.display_name || u.email}</span>
+                    <span className="dev-panel-player-name">{u.display_name || u.email || 'No Name'}</span>
                     {u.username && <span className="dev-panel-player-username">@{u.username}</span>}
                   </div>
                   <div className="dev-panel-player-actions">
