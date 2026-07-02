@@ -370,11 +370,7 @@ app.post('/api/guess', async (req, res) => {
     const history = user.history || {};
  
     const seqIndex = getDailySequenceIndex(history, levelIndex, date);
-    const seedString = `${date}-${seqIndex}`;
-    const seedNumber = hashString(seedString);
-    const rng = mulberry32(seedNumber);
-    const randIndex = Math.floor(rng() * targetWords.length);
-    const targetWord = targetWords[randIndex];
+    const targetWord = getTargetWord(date, seqIndex);
  
     if (!history[levelIndex]) {
       history[levelIndex] = {
@@ -596,6 +592,9 @@ app.post('/api/friends/list', async (req, res) => {
 const targetWordsPath = path.join(__dirname, 'targetWords.json');
 const targetWords = JSON.parse(fs.readFileSync(targetWordsPath, 'utf8'));
 
+const targetWordsLegacyPath = path.join(__dirname, 'targetWordsLegacy.json');
+const targetWordsLegacy = JSON.parse(fs.readFileSync(targetWordsLegacyPath, 'utf8'));
+
 // Full word list used to validate guesses
 const validWordsPath = path.join(__dirname, 'words.json');
 const validWords = JSON.parse(fs.readFileSync(validWordsPath, 'utf8'));
@@ -620,6 +619,18 @@ function hashString(str) {
         hash = hash & hash; // Convert to 32bit integer
     }
     return hash;
+}
+
+const SWITCHOVER_DATE = '2026-07-03';
+
+function getTargetWord(date, seqIndex) {
+    const seedString = `${date}-${seqIndex}`;
+    const seedNumber = hashString(seedString);
+    const rng = mulberry32(seedNumber);
+    
+    const list = (date < SWITCHOVER_DATE) ? targetWordsLegacy : targetWords;
+    const randIndex = Math.floor(rng() * list.length);
+    return list[randIndex];
 }
 
 function xorObfuscate(str, key) {
@@ -900,15 +911,7 @@ app.get('/api/word', (req, res) => {
     const centralTimeDateStr = formatInTimeZone(new Date(), 'America/Chicago', 'yyyy-MM-dd');
     const targetDate = req.query.date || centralTimeDateStr;
     
-    // Seed is based on the date and the daily sequence index
-    const seedString = `${targetDate}-${seq}`;
-    const seedNumber = hashString(seedString);
-    
-    const rng = mulberry32(seedNumber);
-    
-    // Pick a word
-    const randIndex = Math.floor(rng() * targetWords.length);
-    const word = targetWords[randIndex];
+    const word = getTargetWord(targetDate, seq);
     
     const obfuscated = xorObfuscate(word, targetDate);
     
@@ -1044,9 +1047,7 @@ app.post('/api/dev/words', async (req, res) => {
     const words = [];
     for (let i = 0; i < count; i++) {
         const wordIndex = wordOffset + i;
-        const seedString = `${dateStr}-${wordIndex}`;
-        const rng = mulberry32(hashString(seedString));
-        words.push(targetWords[Math.floor(rng() * targetWords.length)]);
+        words.push(getTargetWord(dateStr, wordIndex));
     }
 
     res.json({ offset, date: dateStr, wordOffset, words });
