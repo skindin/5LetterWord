@@ -148,6 +148,8 @@ export default function App() {
   const [authEmail, setAuthEmail] = useState('');
   const [showLinkEmailModal, setShowLinkEmailModal] = useState(false);
   const [linkEmailInput, setLinkEmailInput] = useState('');
+  const [isNewGoogleUser, setIsNewGoogleUser] = useState(false);
+  const [showGoogleConsentModal, setShowGoogleConsentModal] = useState(false);
   const [skipEmailPrompt, setSkipEmailPrompt] = useState(false);
   const [qrCodeImageSrc, setQrCodeImageSrc] = useState('');
   
@@ -378,11 +380,13 @@ export default function App() {
     }
     setIsDev(!!data.isDev);
 
-    if (data.skipEmailPrompt !== undefined) {
-      setSkipEmailPrompt(!!data.skipEmailPrompt);
-    }
-
-    if (!data.user?.email && !data.skipEmailPrompt && data.username) {
+    if (data.isNewUser) {
+      if (data.username) {
+        setShowGoogleConsentModal(true);
+      } else {
+        setIsNewGoogleUser(true);
+      }
+    } else if (!data.user?.email && !data.skipEmailPrompt && data.username) {
       setShowLinkEmailModal(true);
     }
 
@@ -482,6 +486,9 @@ export default function App() {
       const data = await res.json();
       if (res.ok) {
         setUsername(data.username);
+        if (isNewGoogleUser) {
+          setShowGoogleConsentModal(true);
+        }
       } else {
         setSetupError(data.error || 'could not set username');
       }
@@ -831,19 +838,6 @@ export default function App() {
               <span>or sign in with</span>
             </div>
 
-            <div className="auth-consent-container" style={{ display: 'flex', alignItems: 'flex-start', gap: '8px', margin: '0 auto 12px auto', maxWidth: '280px', textAlign: 'left' }}>
-              <input
-                id="auth-consent-google"
-                type="checkbox"
-                checked={emailConsent}
-                onChange={e => setEmailConsent(e.target.checked)}
-                style={{ marginTop: '3px', cursor: 'pointer', accentColor: '#10b981' }}
-              />
-              <label htmlFor="auth-consent-google" style={{ fontSize: '0.74rem', color: '#a1a1aa', cursor: 'pointer', lineHeight: '1.4', fontWeight: '500' }}>
-                Opt in to email reminders (required for Google signup streaks)
-              </label>
-            </div>
-
             <div className="google-auth-wrapper">
               <GoogleLogin
                 onSuccess={credentialResponse => {
@@ -853,7 +847,7 @@ export default function App() {
                   fetch('/api/auth', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ token: userToken, emailConsent })
+                    body: JSON.stringify({ token: userToken })
                   })
                   .then(r => {
                     if (!r.ok) {
@@ -1059,6 +1053,66 @@ export default function App() {
           sessionStorage.removeItem('pendingFriendRequest');
         }}
       />
+
+      {showGoogleConsentModal && (
+        <div className="modal-overlay" style={{ zIndex: 1000 }}>
+          <div className="modal-content" style={{ maxWidth: '400px', width: '90%', padding: '24px', textAlign: 'center' }}>
+            <h2 style={{ fontSize: '1.48rem', marginBottom: '8px', color: '#f8fafc', fontWeight: '800' }}>Enable Reminders?</h2>
+            <p style={{ fontSize: '0.84rem', color: '#94a3b8', marginBottom: '22px', lineHeight: '1.5' }}>
+              Would you like to opt in to daily email reminders to keep your win streak active and receive weekly digests?
+            </p>
+            
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+              <button 
+                className="btn btn-primary" 
+                onClick={async () => {
+                  try {
+                    const res = await fetch('/api/user/update-consent', {
+                      method: 'POST',
+                      headers: { 'Content-Type': 'application/json' },
+                      body: JSON.stringify({ token, consent: true })
+                    });
+                    if (res.ok) {
+                      setShowGoogleConsentModal(false);
+                    } else {
+                      alert('Failed to save preference');
+                    }
+                  } catch (err) {
+                    console.error(err);
+                    alert('Network error while saving preferences.');
+                  }
+                }}
+                style={{ width: '100%', padding: '10px' }}
+              >
+                Yes, Enable Reminders
+              </button>
+              <button 
+                className="btn" 
+                onClick={async () => {
+                  try {
+                    const res = await fetch('/api/user/update-consent', {
+                      method: 'POST',
+                      headers: { 'Content-Type': 'application/json' },
+                      body: JSON.stringify({ token, consent: false })
+                    });
+                    if (res.ok) {
+                      setShowGoogleConsentModal(false);
+                    } else {
+                      alert('Failed to save preference');
+                    }
+                  } catch (err) {
+                    console.error(err);
+                    alert('Network error while saving preferences.');
+                  }
+                }}
+                style={{ width: '100%', background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.1)', color: '#94a3b8', padding: '10px' }}
+              >
+                No Thanks
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {showLinkEmailModal && !skipEmailPrompt && (
         <div className="modal-overlay" style={{ zIndex: 1000 }}>

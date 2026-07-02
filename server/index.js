@@ -121,12 +121,16 @@ async function getUserFromToken(token, emailConsent = null) {
     `, [token]);
 
     if (sessionRes.rows.length > 0) {
-      return { user: sessionRes.rows[0], token };
+      return { user: sessionRes.rows[0], token, isNewUser: false };
     }
 
     // 2. Try to verify as a Google ID token
     const payload = await verifyGoogleToken(token);
     if (!payload) return null;
+
+    // Check if user already exists
+    const checkUser = await pool.query('SELECT google_id FROM users WHERE google_id = $1', [payload.sub]);
+    const isNewUser = checkUser.rows.length === 0;
 
     // Create or update user
     const userRes = await pool.query(`
@@ -148,7 +152,7 @@ async function getUserFromToken(token, emailConsent = null) {
       VALUES ($1, $2)
     `, [sessionToken, user.google_id]);
 
-    return { user, token: sessionToken };
+    return { user, token: sessionToken, isNewUser };
   } catch (e) {
     console.error("Error authenticating token:", e);
     return null;
@@ -178,7 +182,7 @@ app.post('/api/auth', async (req, res) => {
     const result = await getUserFromToken(req.body.token, req.body.emailConsent);
     if (!result) return res.status(401).json({ error: "Invalid token" });
 
-    const { user, token } = result;
+    const { user, token, isNewUser } = result;
     res.json({
       token,
       history: sanitizeHistory(user.history),
@@ -186,6 +190,7 @@ app.post('/api/auth', async (req, res) => {
       isDev: user.is_dev,
       emailConsent: user.email_consent,
       skipEmailPrompt: user.skip_email_prompt,
+      isNewUser: !!isNewUser,
       user: { name: user.display_name, picture: user.picture, email: user.email }
     });
   } catch (e) {
@@ -900,6 +905,29 @@ app.get('/api/word', (req, res) => {
 // Actually, let's just send the whole targetWords list so the client can validate guesses against it.
 app.get('/api/valid-words', (req, res) => {
     res.json(validWords);
+});
+
+app.post('/api/user/update-consent', async (req, res) => {
+  if (!pool) return res.status(500).json({ error: "Database not configured" });
+  
+  const result = await getUserFromToken(req.body.token);
+  if (!result) return res.status(401).json({ error: "Invalid token" });
+  
+  const { user } = result;
+  const { consent } = req.body;
+  
+  try {
+    await pool.query(`
+      UPDATE users 
+      SET email_consent = $1
+      WHERE google_id = $2
+    `, [consent === true, user.google_id]);
+    
+    res.json({ success: true, emailConsent: consent === true });
+  } catch (e) {
+    console.error("Update consent error:", e);
+    res.status(500).json({ error: "Database error while updating consent." });
+  }
 });
 
 app.post('/api/user/link-email', async (req, res) => {
