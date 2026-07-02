@@ -1013,6 +1013,29 @@ async function sendPrebuiltEmail(user, emailType, todayDateStr) {
             `;
         }
         extraHtml = friendsHtml;
+    } else if (emailType === 'password_reset') {
+        const token = crypto.randomBytes(32).toString('hex');
+        const expires = new Date();
+        expires.setHours(expires.getHours() + 1); // 1 hour token lifetime
+
+        if (pool) {
+            try {
+                await pool.query(`
+                  UPDATE users 
+                  SET reset_password_token = $1, reset_password_expires = $2 
+                  WHERE google_id = $3
+                `, [token, expires, user.google_id]);
+            } catch (dbErr) {
+                console.error("Error setting reset token in sendPrebuiltEmail:", dbErr);
+                return { success: false, error: "Database error setting token" };
+            }
+        }
+
+        subject = "Reset your 5 Letter Word password";
+        emailTitle = "Reset Your Password";
+        emailDescription = `We received a request to reset the password for your 5 Letter Word account. Click the button below to choose a new password. This link is valid for 1 hour.`;
+        actionButtonText = "Reset Password";
+        actionButtonUrl = `${appUrl}/reset-password?token=${token}`;
     } else {
         return { success: false, error: "Invalid email type" };
     }
