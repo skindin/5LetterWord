@@ -134,6 +134,13 @@ async function getUserFromToken(token, emailConsent = null) {
     const checkUser = await pool.query('SELECT google_id FROM users WHERE google_id = $1', [payload.sub]);
     const isNewUser = checkUser.rows.length === 0;
 
+    if (isNewUser && payload.email) {
+      const emailCheck = await pool.query('SELECT google_id FROM users WHERE LOWER(email) = $1', [payload.email.toLowerCase()]);
+      if (emailCheck.rows.length > 0) {
+        throw new Error('EMAIL_IN_USE');
+      }
+    }
+
     // Create or update user
     const userRes = await pool.query(`
       INSERT INTO users (google_id, email, display_name, picture, email_consent)
@@ -196,6 +203,9 @@ app.post('/api/auth', async (req, res) => {
       user: { name: user.display_name, picture: user.picture, email: user.email }
     });
   } catch (e) {
+    if (e.message === 'EMAIL_IN_USE') {
+      return res.status(400).json({ error: "Email address is already in use." });
+    }
     console.error(e);
     res.status(500).json({ error: "Database error" });
   }
@@ -231,6 +241,14 @@ app.post('/api/auth/register', async (req, res) => {
     const checkUser = await pool.query('SELECT google_id FROM users WHERE username = $1', [cleanUsername]);
     if (checkUser.rows.length > 0) {
       return res.status(400).json({ error: "Username is already taken." });
+    }
+
+    // Check if email is already taken
+    if (cleanEmail) {
+      const emailCheck = await pool.query('SELECT google_id FROM users WHERE LOWER(email) = $1', [cleanEmail.toLowerCase()]);
+      if (emailCheck.rows.length > 0) {
+        return res.status(400).json({ error: "Email address is already in use." });
+      }
     }
 
     const localId = `local:${crypto.randomUUID()}`;
@@ -1166,6 +1184,11 @@ app.post('/api/user/link-email', async (req, res) => {
   }
   
   try {
+    const emailCheck = await pool.query('SELECT google_id FROM users WHERE LOWER(email) = $1 AND google_id <> $2', [cleanEmail.toLowerCase(), user.google_id]);
+    if (emailCheck.rows.length > 0) {
+      return res.status(400).json({ error: "Email address is already in use." });
+    }
+
     await pool.query(`
       UPDATE users 
       SET email = $1, email_consent = TRUE
