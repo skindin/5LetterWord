@@ -667,64 +667,6 @@ export default function App() {
     }
   }, [currentGuess, gameStatus, guesses, targetWord, validWords, isFetching, token, viewingIndex, activeDate]);
 
-  // Handle physical keyboard input
-  useEffect(() => {
-    const handleKeyDown = (e: KeyboardEvent) => {
-      const target = e.target as HTMLElement;
-      if (
-        !target ||
-        target.tagName === 'INPUT' ||
-        target.tagName === 'TEXTAREA' ||
-        target.isContentEditable
-      ) {
-        return;
-      }
-
-      if (
-        !token ||
-        currentView !== 'game' ||
-        isSettingUsername ||
-        showLinkEmailModal ||
-        showGoogleConsentModal ||
-        isStatsOpen ||
-        calendarTarget !== null ||
-        isQRCodeOpen ||
-        isAcceptFriendOpen ||
-        gameStatus !== 'playing' ||
-        isFetching
-      ) {
-        return;
-      }
-
-      if (e.key === 'Backspace') {
-        e.preventDefault();
-        onKeyPress('backspace');
-      } else if (e.key === 'Enter') {
-        e.preventDefault();
-        onKeyPress('enter');
-      } else if (/^[a-zA-Z]$/.test(e.key)) {
-        onKeyPress(e.key.toLowerCase());
-      }
-    };
-
-    window.addEventListener('keydown', handleKeyDown);
-    return () => {
-      window.removeEventListener('keydown', handleKeyDown);
-    };
-  }, [
-    token,
-    currentView,
-    isSettingUsername,
-    showLinkEmailModal,
-    showGoogleConsentModal,
-    isStatsOpen,
-    calendarTarget,
-    isQRCodeOpen,
-    isAcceptFriendOpen,
-    gameStatus,
-    isFetching,
-    onKeyPress
-  ]);
 
 
   let formattedDateStr = '';
@@ -777,6 +719,89 @@ export default function App() {
     setGamesWon(0);
     setViewingIndex(0);
   };
+
+  // Handle physical keyboard input
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      const target = e.target as HTMLElement;
+      if (
+        !target ||
+        target.tagName === 'INPUT' ||
+        target.tagName === 'TEXTAREA' ||
+        target.isContentEditable
+      ) {
+        return;
+      }
+
+      if (
+        !token ||
+        currentView !== 'game' ||
+        isSettingUsername ||
+        showLinkEmailModal ||
+        showGoogleConsentModal ||
+        isStatsOpen ||
+        calendarTarget !== null ||
+        isQRCodeOpen ||
+        isAcceptFriendOpen ||
+        isFetching
+      ) {
+        return;
+      }
+
+      // If the level is won or lost, Enter key goes to the next level
+      if ((gameStatus === 'won' || gameStatus === 'lost') && e.key === 'Enter') {
+        e.preventDefault();
+        handleNext();
+        return;
+      }
+
+      if (e.key === 'ArrowRight') {
+        e.preventDefault();
+        handleNext();
+        return;
+      }
+
+      if (e.key === 'ArrowLeft') {
+        e.preventDefault();
+        handlePrev();
+        return;
+      }
+
+      if (gameStatus !== 'playing') {
+        return;
+      }
+
+      if (e.key === 'Backspace') {
+        e.preventDefault();
+        onKeyPress('backspace');
+      } else if (e.key === 'Enter') {
+        e.preventDefault();
+        onKeyPress('enter');
+      } else if (/^[a-zA-Z]$/.test(e.key)) {
+        onKeyPress(e.key.toLowerCase());
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+    return () => {
+      window.removeEventListener('keydown', handleKeyDown);
+    };
+  }, [
+    token,
+    currentView,
+    isSettingUsername,
+    showLinkEmailModal,
+    showGoogleConsentModal,
+    isStatsOpen,
+    calendarTarget,
+    isQRCodeOpen,
+    isAcceptFriendOpen,
+    gameStatus,
+    isFetching,
+    onKeyPress,
+    handlePrev,
+    handleNext
+  ]);
 
   // We only count actual games finished in the viewingIndex logic, but the user requested 'gamesPlayed' at the top.
   // We can calculate games played by counting non-playing games in history, or just tracking the max index visited.
