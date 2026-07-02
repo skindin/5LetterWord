@@ -179,6 +179,21 @@ export default function DevPanel({ token }: Props) {
     }
   };
 
+  const handleSendEmail = async (user: User, emailType: string) => {
+    if (!user.email) {
+      setError("User does not have a registered email address.");
+      return;
+    }
+    setError(null);
+    setActionMsg(null);
+    try {
+      await apiPost('/api/dev/send-email', { targetGoogleId: user.google_id, emailType });
+      setActionMsg(`Manually triggered "${emailType}" email to ${user.display_name || user.email}`);
+    } catch (e: any) {
+      setError(e.message);
+    }
+  };
+
   const renderPlayerHistory = (u: User) => {
     const historyObj = u.history;
     if (!historyObj || Object.keys(historyObj).length === 0) {
@@ -332,6 +347,33 @@ export default function DevPanel({ token }: Props) {
                     >
                       {expandedUser === u.google_id ? '▲ Hide' : '▼ History'}
                     </button>
+                    <select
+                      className="dev-panel-email-select"
+                      onChange={(e) => {
+                        if (e.target.value) {
+                          handleSendEmail(u, e.target.value);
+                          e.target.value = ""; // Reset dropdown
+                        }
+                      }}
+                      defaultValue=""
+                      style={{
+                        background: 'rgba(16,185,129,0.15)',
+                        border: '1px solid rgba(16,185,129,0.3)',
+                        color: '#34d399',
+                        borderRadius: '6px',
+                        padding: '2px 4px',
+                        fontSize: '0.72rem',
+                        fontWeight: 'bold',
+                        cursor: 'pointer',
+                        outline: 'none',
+                        height: '24px'
+                      }}
+                    >
+                      <option value="" style={{ background: '#1e293b', color: '#94a3b8' }}>✉ Send Email</option>
+                      <option value="live_streak" style={{ background: '#1e293b', color: '#f8fafc' }}>Live Streak</option>
+                      <option value="lost_streak" style={{ background: '#1e293b', color: '#f8fafc' }}>Lost Streak</option>
+                      <option value="weekly_digest" style={{ background: '#1e293b', color: '#f8fafc' }}>Weekly Digest</option>
+                    </select>
                     <button
                       className="dev-panel-btn-wipe"
                       onClick={() => setConfirmTarget({ user: u, action: 'wipe' })}

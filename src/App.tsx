@@ -144,6 +144,7 @@ export default function App() {
   const [authPassword, setAuthPassword] = useState('');
   const [authError, setAuthError] = useState('');
   const [isSubmittingAuth, setIsSubmittingAuth] = useState(false);
+  const [emailConsent, setEmailConsent] = useState(false);
   const [qrCodeImageSrc, setQrCodeImageSrc] = useState('');
   
   const countdown = useCountdownToMidnightCT();
@@ -430,7 +431,7 @@ export default function App() {
       const res = await fetch(endpoint, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ username: authUsername.trim(), password: authPassword })
+        body: JSON.stringify({ username: authUsername.trim(), password: authPassword, emailConsent })
       });
       const data = await res.json();
       if (res.ok) {
@@ -768,6 +769,21 @@ export default function App() {
                 />
               </div>
 
+              {authMode === 'register' && (
+                <div className="auth-consent-container" style={{ display: 'flex', alignItems: 'flex-start', gap: '8px', margin: '12px 0 6px 0' }}>
+                  <input
+                    id="auth-consent-manual"
+                    type="checkbox"
+                    checked={emailConsent}
+                    onChange={e => setEmailConsent(e.target.checked)}
+                    style={{ marginTop: '3px', cursor: 'pointer', accentColor: '#10b981' }}
+                  />
+                  <label htmlFor="auth-consent-manual" style={{ fontSize: '0.78rem', color: '#a1a1aa', cursor: 'pointer', lineHeight: '1.4', fontWeight: '500', textTransform: 'none', letterSpacing: 'normal' }}>
+                    I consent to receive daily reminders and weekly digests to keep my streak active.
+                  </label>
+                </div>
+              )}
+
               {authError && <div className="auth-error-banner">{authError}</div>}
 
               <button type="submit" className="btn btn-primary auth-submit-btn" disabled={isSubmittingAuth}>
@@ -779,6 +795,19 @@ export default function App() {
               <span>or sign in with</span>
             </div>
 
+            <div className="auth-consent-container" style={{ display: 'flex', alignItems: 'flex-start', gap: '8px', margin: '0 auto 12px auto', maxWidth: '280px', textAlign: 'left' }}>
+              <input
+                id="auth-consent-google"
+                type="checkbox"
+                checked={emailConsent}
+                onChange={e => setEmailConsent(e.target.checked)}
+                style={{ marginTop: '3px', cursor: 'pointer', accentColor: '#10b981' }}
+              />
+              <label htmlFor="auth-consent-google" style={{ fontSize: '0.74rem', color: '#a1a1aa', cursor: 'pointer', lineHeight: '1.4', fontWeight: '500' }}>
+                Opt in to email reminders (required for Google signup streaks)
+              </label>
+            </div>
+
             <div className="google-auth-wrapper">
               <GoogleLogin
                 onSuccess={credentialResponse => {
@@ -788,7 +817,7 @@ export default function App() {
                   fetch('/api/auth', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ token: userToken })
+                    body: JSON.stringify({ token: userToken, emailConsent })
                   })
                   .then(r => {
                     if (!r.ok) {

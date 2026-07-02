@@ -8,6 +8,7 @@ import { fileURLToPath } from 'url';
 import pg from 'pg';
 import { OAuth2Client } from 'google-auth-library';
 import crypto from 'crypto';
+import { Resend } from 'resend';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -17,6 +18,13 @@ const PORT = process.env.PORT || 3000;
 
 app.use(cors());
 app.use(express.json());
+
+const resend = process.env.RESEND_API_KEY ? new Resend(process.env.RESEND_API_KEY) : null;
+if (resend) {
+  console.log("Resend email reminder client initialized successfully.");
+} else {
+  console.warn("RESEND_API_KEY not set. Automated email reminder features will be disabled.");
+}
 
 const { Pool } = pg;
 let pool = null;
@@ -40,6 +48,7 @@ if (process.env.DATABASE_URL) {
     await pool.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS picture TEXT`);
     await pool.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS is_dev BOOLEAN DEFAULT FALSE`);
     await pool.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS password_hash TEXT`);
+    await pool.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS email_consent BOOLEAN DEFAULT FALSE`);
     
     // Create relationship table for mutual friendships
     await pool.query(`
@@ -97,14 +106,14 @@ function verifyPassword(password, storedPasswordHash) {
   return hash === originalHash;
 }
 
-async function getUserFromToken(token) {
+async function getUserFromToken(token, emailConsent = null) {
   if (!token) return null;
   if (!pool) return null;
 
   try {
     // 1. Try to find session in our database
     const sessionRes = await pool.query(`
-      SELECT u.google_id, u.email, u.username, u.display_name, u.picture, u.is_dev, u.history
+      SELECT u.google_id, u.email, u.username, u.display_name, u.picture, u.is_dev, u.history, u.email_consent
       FROM sessions s
       JOIN users u ON s.google_id = u.google_id
       WHERE s.session_token = $1
@@ -120,14 +129,15 @@ async function getUserFromToken(token) {
 
     // Create or update user
     const userRes = await pool.query(`
-      INSERT INTO users (google_id, email, display_name, picture)
-      VALUES ($1, $2, $3, $4)
+      INSERT INTO users (google_id, email, display_name, picture, email_consent)
+      VALUES ($1, $2, $3, $4, $5)
       ON CONFLICT (google_id) DO UPDATE SET 
         email = EXCLUDED.email,
         display_name = EXCLUDED.display_name,
-        picture = EXCLUDED.picture
-      RETURNING google_id, email, username, display_name, picture, is_dev, history
-    `, [payload.sub, payload.email, payload.name, payload.picture]);
+        picture = EXCLUDED.picture,
+        email_consent = users.email_consent OR EXCLUDED.email_consent
+      RETURNING google_id, email, username, display_name, picture, is_dev, history, email_consent
+    `, [payload.sub, payload.email, payload.name, payload.picture, emailConsent === true]);
 
     const user = userRes.rows[0];
     const sessionToken = crypto.randomBytes(32).toString('hex');
@@ -164,7 +174,7 @@ app.post('/api/auth', async (req, res) => {
   if (!pool) return res.status(500).json({ error: "Database not configured" });
   
   try {
-    const result = await getUserFromToken(req.body.token);
+    const result = await getUserFromToken(req.body.token, req.body.emailConsent);
     if (!result) return res.status(401).json({ error: "Invalid token" });
 
     const { user, token } = result;
@@ -173,6 +183,7 @@ app.post('/api/auth', async (req, res) => {
       history: sanitizeHistory(user.history),
       username: user.username,
       isDev: user.is_dev,
+      emailConsent: user.email_consent,
       user: { name: user.display_name, picture: user.picture }
     });
   } catch (e) {
@@ -184,7 +195,7 @@ app.post('/api/auth', async (req, res) => {
 app.post('/api/auth/register', async (req, res) => {
   if (!pool) return res.status(500).json({ error: "Database not configured" });
   
-  const { username, password } = req.body;
+  const { username, password, emailConsent } = req.body;
   
   // Validate username format
   const cleanUsername = username?.trim().toLowerCase().replace(/[^a-z0-9_]/g, '');
@@ -217,10 +228,10 @@ app.post('/api/auth/register', async (req, res) => {
 
     // Insert new local user
     const userRes = await pool.query(`
-      INSERT INTO users (google_id, username, display_name, password_hash, picture)
-      VALUES ($1, $2, $3, $4, $5)
-      RETURNING google_id, email, username, display_name, picture, is_dev, history
-    `, [localId, cleanUsername, cleanUsername, passwordHash, defaultPic]);
+      INSERT INTO users (google_id, username, display_name, password_hash, picture, email_consent)
+      VALUES ($1, $2, $3, $4, $5, $6)
+      RETURNING google_id, email, username, display_name, picture, is_dev, history, email_consent
+    `, [localId, cleanUsername, cleanUsername, passwordHash, defaultPic, emailConsent === true]);
 
     const user = userRes.rows[0];
     const sessionToken = crypto.randomBytes(32).toString('hex');
@@ -236,6 +247,7 @@ app.post('/api/auth/register', async (req, res) => {
       history: sanitizeHistory(user.history),
       username: user.username,
       isDev: user.is_dev,
+      emailConsent: user.email_consent,
       user: { name: user.display_name, picture: user.picture }
     });
 
@@ -257,7 +269,7 @@ app.post('/api/auth/login', async (req, res) => {
 
   try {
     const userRes = await pool.query(`
-      SELECT google_id, email, username, display_name, password_hash, picture, is_dev, history
+      SELECT google_id, email, username, display_name, password_hash, picture, is_dev, history, email_consent
       FROM users
       WHERE username = $1
     `, [cleanUsername]);
@@ -289,6 +301,7 @@ app.post('/api/auth/login', async (req, res) => {
       history: sanitizeHistory(user.history),
       username: user.username,
       isDev: user.is_dev,
+      emailConsent: user.email_consent,
       user: { name: user.display_name, picture: user.picture }
     });
 
@@ -604,6 +617,248 @@ function xorObfuscate(str, key) {
     return Buffer.from(result, 'binary').toString('hex');
 }
 
+// Compute user win streak stats
+function getStreakStats(history, currentDateStr) {
+    const wonGames = Object.values(history || {}).filter(g => g && g.status === 'won');
+    const winDatesSorted = Array.from(new Set(wonGames.map(g => g.date))).sort();
+
+    if (winDatesSorted.length === 0) {
+        return { currentStreak: 0, longestStreak: 0 };
+    }
+
+    const parseDateString = (dateStr) => {
+        const [year, month, day] = dateStr.split('-').map(Number);
+        return new Date(year, month - 1, day);
+    };
+
+    const dates = winDatesSorted.map(parseDateString);
+    
+    let longestStreak = 0;
+    let tempStreak = 1;
+    
+    for (let i = 0; i < dates.length; i++) {
+        if (i > 0) {
+            const diffTime = dates[i].getTime() - dates[i-1].getTime();
+            const diffDays = Math.round(diffTime / (1000 * 60 * 60 * 24));
+            if (diffDays === 1) {
+                tempStreak++;
+            } else if (diffDays > 1) {
+                if (tempStreak > longestStreak) {
+                    longestStreak = tempStreak;
+                }
+                tempStreak = 1;
+            }
+        }
+    }
+    if (tempStreak > longestStreak) {
+        longestStreak = tempStreak;
+    }
+
+    // Calculate current streak
+    let currentStreak = 0;
+    const lastWinDateStr = winDatesSorted[winDatesSorted.length - 1];
+    const lastWinDate = parseDateString(lastWinDateStr);
+    const currentDate = parseDateString(currentDateStr);
+    
+    const diffTime = currentDate.getTime() - lastWinDate.getTime();
+    const diffDays = Math.round(diffTime / (1000 * 60 * 60 * 24));
+    
+    if (diffDays === 0 || diffDays === 1) {
+        let currentTemp = 1;
+        for (let i = dates.length - 1; i > 0; i--) {
+            const diffT = dates[i].getTime() - dates[i-1].getTime();
+            const diffD = Math.round(diffT / (1000 * 60 * 60 * 24));
+            if (diffD === 1) {
+                currentTemp++;
+            } else {
+                break;
+            }
+        }
+        currentStreak = currentTemp;
+    } else {
+        currentStreak = 0;
+    }
+
+    return { currentStreak, longestStreak };
+}
+
+// Send a prebuilt email using Resend
+async function sendPrebuiltEmail(user, emailType, todayDateStr) {
+    if (!resend) {
+        return { success: false, error: "Resend client not initialized" };
+    }
+    const sender = process.env.SENDER_EMAIL || 'reminders@yourdomain.com';
+    const appUrl = `https://${process.env.RAILWAY_STATIC_URL || '5letterword.up.railway.app'}`;
+
+    // Get streak stats as of today
+    const { currentStreak } = getStreakStats(user.history, todayDateStr);
+
+    let subject = "";
+    let emailTitle = "";
+    let emailDescription = "";
+    let actionButtonText = "Play Today's Word";
+    let actionButtonUrl = appUrl;
+    let extraHtml = "";
+
+    if (emailType === 'live_streak') {
+        subject = `Keep your ${currentStreak || 1}-day streak alive! 🚀`;
+        emailTitle = "Keep Your Streak Going!";
+        emailDescription = `You currently have a live <strong>${currentStreak || 1}-day streak</strong>! Don't let it slip away. Play today's 5LetterWord puzzle before midnight to keep it active.`;
+        actionButtonText = "Play 5LetterWord Now";
+    } else if (emailType === 'lost_streak') {
+        // Calculate the streak that was just lost (which was active 2 days ago)
+        const twoDaysAgo = new Date();
+        twoDaysAgo.setDate(twoDaysAgo.getDate() - 2);
+        const twoDaysAgoStr = formatInTimeZone(twoDaysAgo, 'America/Chicago', 'yyyy-MM-dd');
+        const { currentStreak: lostStreak } = getStreakStats(user.history, twoDaysAgoStr);
+
+        subject = "Oh no, you lost your streak! 😢";
+        emailTitle = "Your Streak Broke";
+        emailDescription = `It looks like you missed yesterday's puzzle, and your streak of <strong>${lostStreak || 1} days</strong> has broken. But don't worry—streaks are made to be broken, and today is the perfect day to start a brand new one!`;
+        actionButtonText = "Start a New Streak";
+    } else if (emailType === 'weekly_digest') {
+        subject = "Your 5LetterWord Weekly Update 📊";
+        emailTitle = "Weekly Friend Stats Digest";
+        emailDescription = "It's been a while since your last game! Solve today's puzzle to start a new streak and see if you can top your friends.";
+        actionButtonText = "Play 5LetterWord";
+        
+        // Fetch friends
+        let friendsList = [];
+        if (pool) {
+            try {
+                const friendsRes = await pool.query(`
+                    SELECT u.username, u.display_name, u.history
+                    FROM users u
+                    WHERE u.google_id IN (
+                        SELECT user_id_2 FROM friendships WHERE user_id_1 = $1
+                        UNION
+                        SELECT user_id_1 FROM friendships WHERE user_id_2 = $1
+                    )
+                `, [user.google_id]);
+                friendsList = friendsRes.rows;
+            } catch (dbErr) {
+                console.error("Error fetching friends for weekly digest:", dbErr);
+            }
+        }
+
+        let friendsHtml = "";
+        if (friendsList.length > 0) {
+            friendsHtml += `
+                <div style="margin-top: 25px; margin-bottom: 25px; background: rgba(0, 0, 0, 0.2); border: 1px solid rgba(255, 255, 255, 0.05); border-radius: 12px; padding: 20px;">
+                    <h3 style="color: #6366f1; margin-top: 0; margin-bottom: 15px; font-size: 15px; text-transform: uppercase; letter-spacing: 0.5px; font-weight: 800; font-family: 'Outfit', sans-serif;">Friend Leaderboard</h3>
+                    <table border="0" cellpadding="0" cellspacing="0" width="100%">
+            `;
+            for (const friend of friendsList) {
+                const { currentStreak: friendStreak } = getStreakStats(friend.history, todayDateStr);
+                const name = friend.display_name || friend.username || 'Anonymous Friend';
+                const streakText = friendStreak > 0 ? `🔥 ${friendStreak} day streak` : '💤 inactive';
+                const streakColor = friendStreak > 0 ? '#10b981' : '#64748b';
+                
+                friendsHtml += `
+                    <tr>
+                        <td style="padding: 8px 0; border-bottom: 1px solid rgba(255,255,255,0.05); font-size: 14px; color: #e2e8f0; font-weight: 600; font-family: 'Outfit', sans-serif;">
+                            👤 ${name} <span style="font-size: 11px; color: #64748b;">@${friend.username || 'unknown'}</span>
+                        </td>
+                        <td style="padding: 8px 0; border-bottom: 1px solid rgba(255,255,255,0.05); font-size: 13px; color: ${streakColor}; font-weight: bold; font-family: 'Outfit', sans-serif; text-align: right;">
+                            ${streakText}
+                        </td>
+                    </tr>
+                `;
+            }
+            friendsHtml += `
+                    </table>
+                </div>
+            `;
+        } else {
+            friendsHtml += `
+                <div style="margin-top: 25px; margin-bottom: 25px; background: rgba(0, 0, 0, 0.15); border: 1px dashed rgba(255, 255, 255, 0.1); border-radius: 12px; padding: 20px; text-align: center;">
+                    <p style="margin: 0; color: #64748b; font-size: 13px; line-height: 1.5; font-family: 'Outfit', sans-serif;">
+                        No friends added yet. Add friends on the Social tab in 5LetterWord to compare your daily streaks!
+                    </p>
+                </div>
+            `;
+        }
+        extraHtml = friendsHtml;
+    } else {
+        return { success: false, error: "Invalid email type" };
+    }
+
+    const unsubscribeUrl = `${appUrl}/api/unsubscribe?id=${user.google_id}`;
+
+    // Premium Dark-Themed Email Layout matching the site
+    const emailHtml = `
+        <!DOCTYPE html>
+        <html>
+        <head>
+            <meta charset="utf-8">
+            <meta name="viewport" content="width=device-width, initial-scale=1.0">
+            <title>${subject}</title>
+            <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@400;600;800&display=swap" rel="stylesheet">
+            <style>
+                @media only screen and (max-width: 600px) {
+                    .container {
+                        padding: 24px !important;
+                        border-radius: 16px !important;
+                    }
+                }
+            </style>
+        </head>
+        <body style="background-color: #0f172a; margin: 0; padding: 40px 20px; font-family: 'Outfit', sans-serif; -webkit-font-smoothing: antialiased; -moz-osx-font-smoothing: grayscale; box-sizing: border-box;">
+            <div class="container" style="max-width: 560px; margin: 0 auto; background-color: #1e293b; border: 1px solid rgba(255, 255, 255, 0.08); border-radius: 24px; padding: 40px; box-shadow: 0 15px 35px rgba(0, 0, 0, 0.4); text-align: left; box-sizing: border-box;">
+                
+                <!-- Logo -->
+                <table border="0" cellpadding="0" cellspacing="0" style="margin-bottom: 28px;">
+                    <tr>
+                        <td style="background-color: #10b981; color: white; width: 36px; height: 36px; border-radius: 10px; text-align: center; font-weight: 800; font-size: 18px; font-family: 'Outfit', sans-serif;">5</td>
+                        <td style="font-size: 20px; font-weight: 800; color: #ffffff; letter-spacing: 0.5px; font-family: 'Outfit', sans-serif; padding-left: 10px; vertical-align: middle;">5LetterWord</td>
+                    </tr>
+                </table>
+                
+                <!-- Title -->
+                <h1 style="color: #ffffff; font-size: 22px; font-weight: 800; margin-top: 0; margin-bottom: 12px; line-height: 1.3; font-family: 'Outfit', sans-serif;">${emailTitle}</h1>
+                
+                <!-- Body Text -->
+                <p style="color: #94a3b8; font-size: 15px; line-height: 1.6; margin-top: 0; margin-bottom: 20px; font-family: 'Outfit', sans-serif;">${emailDescription}</p>
+                
+                <!-- Custom extra sections (e.g. friends table) -->
+                ${extraHtml}
+                
+                <!-- Call To Action Button -->
+                <div style="margin-top: 30px; margin-bottom: 30px; text-align: left;">
+                    <a href="${actionButtonUrl}" style="background-color: #10b981; color: #ffffff; padding: 12px 28px; text-decoration: none; border-radius: 12px; font-weight: bold; font-size: 15px; display: inline-block; font-family: 'Outfit', sans-serif; box-shadow: 0 4px 12px rgba(16, 185, 129, 0.25);">
+                        ${actionButtonText}
+                    </a>
+                </div>
+                
+                <!-- Divider -->
+                <hr style="border: 0; border-top: 1px solid rgba(255, 255, 255, 0.08); margin: 30px 0;" />
+                
+                <!-- Footer -->
+                <p style="font-size: 11px; color: #4b5563; line-height: 1.6; margin-top: 0; margin-bottom: 0; font-family: 'Outfit', sans-serif;">
+                    You are receiving this because you signed up for streak reminders on 5LetterWord.
+                    <br />
+                    <a href="${unsubscribeUrl}" style="color: #10b981; text-decoration: underline; font-weight: 600;">Unsubscribe from these emails</a>.
+                </p>
+                
+            </div>
+        </body>
+        </html>
+    `;
+
+    try {
+        await resend.emails.send({
+            from: `5LetterWord <${sender}>`,
+            to: user.email,
+            subject: subject,
+            html: emailHtml
+        });
+        return { success: true };
+    } catch (e) {
+        console.error(`Failed to send email to ${user.email} via Resend:`, e);
+        return { success: false, error: e.message };
+    }
+}
+
 // Endpoint to get the target word for the given index
 app.get('/api/word', (req, res) => {
     const index = parseInt(req.query.index) || 0;
@@ -740,6 +995,310 @@ app.post('/api/dev/delete-account', async (req, res) => {
     if (!targetGoogleId) return res.status(400).json({ error: 'targetGoogleId required' });
     await pool.query('DELETE FROM users WHERE google_id = $1', [targetGoogleId]);
     res.json({ success: true });
+});
+
+// Endpoint to trigger automated reminder emails (scheduled via external cron or manual triggers)
+app.get('/api/cron/reminders', async (req, res) => {
+    const authHeader = req.headers.authorization;
+    const querySecret = req.query.secret;
+    const cronSecret = process.env.CRON_SECRET;
+
+    if (!cronSecret) {
+        return res.status(500).json({ error: "CRON_SECRET environment variable is not configured" });
+    }
+
+    // Validate CRON_SECRET either from Bearer Token or from query parameter
+    let requestSecret = null;
+    if (authHeader && authHeader.startsWith('Bearer ')) {
+        requestSecret = authHeader.substring(7);
+    } else if (querySecret) {
+        requestSecret = querySecret;
+    }
+
+    if (requestSecret !== cronSecret) {
+        return res.status(401).json({ error: "Unauthorized" });
+    }
+
+    if (!pool) {
+        return res.status(500).json({ error: "Database not configured" });
+    }
+
+    if (!resend) {
+        return res.status(500).json({ error: "Resend client not initialized (missing RESEND_API_KEY)" });
+    }
+
+    try {
+        const todayDate = new Date();
+        const todayDateStr = formatInTimeZone(todayDate, 'America/Chicago', 'yyyy-MM-dd');
+        
+        const yesterdayDate = new Date();
+        yesterdayDate.setDate(yesterdayDate.getDate() - 1);
+        const yesterdayDateStr = formatInTimeZone(yesterdayDate, 'America/Chicago', 'yyyy-MM-dd');
+
+        // Check if there is an explicit type override (for dev/testing)
+        const forceType = req.query.forceType;
+        
+        // Otherwise determine action based on US Central Time hour
+        const currentHourStr = formatInTimeZone(todayDate, 'America/Chicago', 'HH');
+        const currentHour = parseInt(currentHourStr, 10);
+        const isSunday = (formatInTimeZone(todayDate, 'America/Chicago', 'eeee') === 'Sunday');
+
+        let actionType = null;
+        if (forceType) {
+            actionType = forceType;
+        } else if (currentHour === 10) {
+            actionType = 'lost_streak';
+        } else if (currentHour === 22) {
+            actionType = 'live_streak_or_digest';
+        }
+
+        if (!actionType) {
+            return res.json({
+                success: true,
+                message: `No automated email reminders scheduled for hour ${currentHour} Central Time. (Automated runs occur at 10 AM and 10 PM Central Time).`
+            });
+        }
+
+        // Query only players who have registered emails AND have consented to emails
+        const usersRes = await pool.query('SELECT google_id, email, display_name, history FROM users WHERE email IS NOT NULL AND email_consent = TRUE');
+        const users = usersRes.rows;
+
+        const sentEmails = [];
+        const skippedUsers = [];
+
+        for (const user of users) {
+            const history = user.history || {};
+            
+            // Check if played today
+            const playedToday = Object.values(history).some(g => g && g.date === todayDateStr);
+            if (playedToday) {
+                skippedUsers.push({ google_id: user.google_id, email: user.email, reason: "Played today" });
+                continue;
+            }
+
+            // Calculate streak stats as of today
+            const { currentStreak } = getStreakStats(history, todayDateStr);
+
+            // Determine if they won yesterday
+            const wonGames = Object.values(history).filter(g => g && g.status === 'won');
+            const winDatesSorted = Array.from(new Set(wonGames.map(g => g.date))).sort();
+            
+            let diffDays = 999;
+            if (winDatesSorted.length > 0) {
+                const lastWinDateStr = winDatesSorted[winDatesSorted.length - 1];
+                const parseDateString = (dateStr) => {
+                    const [year, month, day] = dateStr.split('-').map(Number);
+                    return new Date(year, month - 1, day);
+                };
+                const lastWinDate = parseDateString(lastWinDateStr);
+                const currentDate = parseDateString(todayDateStr);
+                diffDays = Math.round((currentDate.getTime() - lastWinDate.getTime()) / (1000 * 60 * 60 * 24));
+            }
+
+            let shouldSend = false;
+            let emailTypeToSend = null;
+
+            if (actionType === 'lost_streak') {
+                // Send only if streak just broke today (diffDays === 2) and they did not play yesterday
+                const playedYesterday = Object.values(history).some(g => g && g.date === yesterdayDateStr);
+                if (diffDays === 2 && !playedYesterday) {
+                    shouldSend = true;
+                    emailTypeToSend = 'lost_streak';
+                }
+            } else if (actionType === 'live_streak') {
+                // Explicit force of live streak
+                shouldSend = true;
+                emailTypeToSend = 'live_streak';
+            } else if (actionType === 'weekly_digest') {
+                // Explicit force of weekly digest
+                shouldSend = true;
+                emailTypeToSend = 'weekly_digest';
+            } else if (actionType === 'live_streak_or_digest') {
+                // Automated 10 PM run
+                if (diffDays === 1) {
+                    // Won yesterday, active streak, remind them before midnight Chicago time
+                    shouldSend = true;
+                    emailTypeToSend = 'live_streak';
+                } else if ((diffDays >= 3 || winDatesSorted.length === 0) && isSunday) {
+                    // Inactive user, send weekly digest on Sundays
+                    shouldSend = true;
+                    emailTypeToSend = 'weekly_digest';
+                }
+            }
+
+            if (shouldSend && emailTypeToSend) {
+                const mailRes = await sendPrebuiltEmail(user, emailTypeToSend, todayDateStr);
+                if (mailRes.success) {
+                    sentEmails.push({ google_id: user.google_id, email: user.email, type: emailTypeToSend });
+                } else {
+                    skippedUsers.push({ google_id: user.google_id, email: user.email, error: mailRes.error });
+                }
+            } else {
+                skippedUsers.push({ google_id: user.google_id, email: user.email, reason: "Does not meet trigger criteria for this run" });
+            }
+        }
+
+        res.json({
+            success: true,
+            actionType,
+            date: todayDateStr,
+            hour: currentHour,
+            isSunday,
+            emailsSentCount: sentEmails.length,
+            emailsSent: sentEmails,
+            skippedUsers
+        });
+
+    } catch (error) {
+        console.error("Error running reminder cron job:", error);
+        res.status(500).json({ error: "Failed to run reminder cron job" });
+    }
+});
+
+// Unsubscribe GET endpoint
+app.get('/api/unsubscribe', async (req, res) => {
+    const { id } = req.query;
+    if (!id) {
+        return res.status(400).send("<h1>Error</h1><p>Missing user ID.</p>");
+    }
+
+    if (!pool) {
+        return res.status(500).send("<h1>Error</h1><p>Database not configured.</p>");
+    }
+
+    try {
+        await pool.query('UPDATE users SET email_consent = FALSE WHERE google_id = $1', [id]);
+        
+        // Render a beautiful themed unsubscribe landing page matching the site theme
+        res.send(`
+            <!DOCTYPE html>
+            <html>
+            <head>
+                <meta charset="utf-8">
+                <title>Unsubscribed - 5LetterWord</title>
+                <meta name="viewport" content="width=device-width, initial-scale=1.0">
+                <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@400;600;800&display=swap" rel="stylesheet">
+                <style>
+                    body {
+                        background-color: #0f172a;
+                        color: #f8fafc;
+                        font-family: 'Outfit', sans-serif;
+                        display: flex;
+                        justify-content: center;
+                        align-items: center;
+                        height: 100vh;
+                        margin: 0;
+                        padding: 20px;
+                        box-sizing: border-box;
+                    }
+                    .container {
+                        background: #1e293b;
+                        border: 1px solid rgba(255, 255, 255, 0.08);
+                        padding: 40px;
+                        border-radius: 24px;
+                        max-width: 480px;
+                        width: 100%;
+                        text-align: center;
+                        box-shadow: 0 15px 35px rgba(0, 0, 0, 0.5);
+                    }
+                    .logo-td {
+                        background-color: #10b981; 
+                        color: white; 
+                        width: 48px; 
+                        height: 48px; 
+                        border-radius: 12px; 
+                        text-align: center; 
+                        font-weight: 800; 
+                        font-size: 24px; 
+                        font-family: 'Outfit', sans-serif;
+                    }
+                    h1 {
+                        font-size: 24px;
+                        margin-top: 24px;
+                        margin-bottom: 12px;
+                        font-weight: 800;
+                        color: #ffffff;
+                    }
+                    p {
+                        color: #94a3b8;
+                        font-size: 15px;
+                        line-height: 1.5;
+                        margin-bottom: 30px;
+                    }
+                    .btn {
+                        background-color: #10b981;
+                        color: white;
+                        padding: 12px 28px;
+                        text-decoration: none;
+                        border-radius: 12px;
+                        font-weight: bold;
+                        display: inline-block;
+                        box-shadow: 0 4px 12px rgba(16, 185, 129, 0.25);
+                        font-size: 15px;
+                    }
+                    .btn:hover {
+                        background-color: #059669;
+                    }
+                </style>
+            </head>
+            <body>
+                <div class="container">
+                    <table border="0" cellpadding="0" cellspacing="0" style="margin: 0 auto;">
+                        <tr>
+                            <td class="logo-td">5</td>
+                        </tr>
+                    </table>
+                    <h1>Unsubscribed Successfully</h1>
+                    <p>You have been unsubscribed from 5LetterWord email reminders. You will no longer receive daily streak or weekly update emails.</p>
+                    <a href="https://${process.env.RAILWAY_STATIC_URL || '5letterword.up.railway.app'}" class="btn">Back to Game</a>
+                </div>
+            </body>
+            </html>
+        `);
+    } catch (e) {
+        console.error("Unsubscribe error:", e);
+        res.status(500).send("<h1>Error</h1><p>Database error during unsubscribe.</p>");
+    }
+});
+
+// Dev-only: manually send a prebuilt email to a user
+app.post('/api/dev/send-email', async (req, res) => {
+    const payload = await requireDev(req, res);
+    if (!payload) return;
+
+    const { targetGoogleId, emailType } = req.body;
+    if (!targetGoogleId || !emailType) {
+        return res.status(400).json({ error: "targetGoogleId and emailType required" });
+    }
+
+    if (!resend) {
+        return res.status(500).json({ error: "Resend client not initialized (missing RESEND_API_KEY)" });
+    }
+
+    try {
+        // Query user info
+        const userRes = await pool.query('SELECT google_id, email, display_name, history FROM users WHERE google_id = $1', [targetGoogleId]);
+        if (userRes.rows.length === 0) {
+            return res.status(404).json({ error: "User not found" });
+        }
+        
+        const user = userRes.rows[0];
+        if (!user.email) {
+            return res.status(400).json({ error: "User does not have an email address" });
+        }
+
+        const todayDateStr = formatInTimeZone(new Date(), 'America/Chicago', 'yyyy-MM-dd');
+        const mailRes = await sendPrebuiltEmail(user, emailType, todayDateStr);
+
+        if (mailRes.success) {
+            res.json({ success: true });
+        } else {
+            res.status(500).json({ error: mailRes.error });
+        }
+    } catch (error) {
+        console.error("Error manually sending email:", error);
+        res.status(500).json({ error: "Failed to send email" });
+    }
 });
 
 // Serve static frontend files
