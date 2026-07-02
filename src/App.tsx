@@ -667,6 +667,65 @@ export default function App() {
     }
   }, [currentGuess, gameStatus, guesses, targetWord, validWords, isFetching, token, viewingIndex, activeDate]);
 
+  // Handle physical keyboard input
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      const target = e.target as HTMLElement;
+      if (
+        !target ||
+        target.tagName === 'INPUT' ||
+        target.tagName === 'TEXTAREA' ||
+        target.isContentEditable
+      ) {
+        return;
+      }
+
+      if (
+        !token ||
+        currentView !== 'game' ||
+        isSettingUsername ||
+        showLinkEmailModal ||
+        showGoogleConsentModal ||
+        isStatsOpen ||
+        calendarTarget !== null ||
+        isQRCodeOpen ||
+        isAcceptFriendOpen ||
+        gameStatus !== 'playing' ||
+        isFetching
+      ) {
+        return;
+      }
+
+      if (e.key === 'Backspace') {
+        e.preventDefault();
+        onKeyPress('backspace');
+      } else if (e.key === 'Enter') {
+        e.preventDefault();
+        onKeyPress('enter');
+      } else if (/^[a-zA-Z]$/.test(e.key)) {
+        onKeyPress(e.key.toLowerCase());
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+    return () => {
+      window.removeEventListener('keydown', handleKeyDown);
+    };
+  }, [
+    token,
+    currentView,
+    isSettingUsername,
+    showLinkEmailModal,
+    showGoogleConsentModal,
+    isStatsOpen,
+    calendarTarget,
+    isQRCodeOpen,
+    isAcceptFriendOpen,
+    gameStatus,
+    isFetching,
+    onKeyPress
+  ]);
+
 
   let formattedDateStr = '';
   let wordNumStr = '';
