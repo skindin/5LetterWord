@@ -50,6 +50,8 @@ if (process.env.DATABASE_URL) {
     await pool.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS password_hash TEXT`);
     await pool.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS email_consent BOOLEAN DEFAULT FALSE`);
     await pool.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS skip_email_prompt BOOLEAN DEFAULT FALSE`);
+    await pool.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS reset_password_token TEXT`);
+    await pool.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS reset_password_expires TIMESTAMP`);
     
     // Create relationship table for mutual friendships
     await pool.query(`
@@ -322,6 +324,181 @@ app.post('/api/auth/login', async (req, res) => {
   } catch (e) {
     console.error("Login error:", e);
     res.status(500).json({ error: "Database error during login." });
+  }
+});
+
+app.post('/api/auth/forgot-password', async (req, res) => {
+  if (!pool) return res.status(500).json({ error: "Database not configured" });
+
+  const { email } = req.body;
+  if (!email) {
+    return res.status(400).json({ error: "Email address is required." });
+  }
+
+  const cleanEmail = email.trim().toLowerCase();
+
+  try {
+    const userRes = await pool.query(`
+      SELECT google_id, username, display_name, email 
+      FROM users 
+      WHERE LOWER(email) = $1
+    `, [cleanEmail]);
+
+    if (userRes.rows.length === 0) {
+      // Generic success message to protect privacy
+      return res.json({ success: true, message: "If an account matches that email, a reset link has been sent." });
+    }
+
+    const user = userRes.rows[0];
+
+    // Generate secure token
+    const token = crypto.randomBytes(32).toString('hex');
+    const expires = new Date();
+    expires.setHours(expires.getHours() + 1); // 1 hour token lifetime
+
+    await pool.query(`
+      UPDATE users 
+      SET reset_password_token = $1, reset_password_expires = $2 
+      WHERE google_id = $3
+    `, [token, expires, user.google_id]);
+
+    if (resend) {
+      const sender = process.env.SENDER_EMAIL || 'reminders@gnomebuddygames.com';
+      let fromField = sender.includes('<') && sender.includes('>') 
+          ? sender 
+          : `"5 Letter Word" <${sender}>`;
+
+      const appUrl = `https://${process.env.RAILWAY_STATIC_URL || '5letterword.up.railway.app'}`;
+      const resetUrl = `${appUrl}/reset-password?token=${token}`;
+
+      const emailHtml = `
+        <!DOCTYPE html>
+        <html>
+        <head>
+            <meta charset="utf-8">
+            <meta name="viewport" content="width=device-width, initial-scale=1.0">
+            <title>Reset your 5 Letter Word password</title>
+            <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@400;600;800&display=swap" rel="stylesheet">
+        </head>
+        <body style="background-color: #0f172a; margin: 0; padding: 40px 20px; font-family: 'Outfit', sans-serif; -webkit-font-smoothing: antialiased; box-sizing: border-box;">
+            <div class="container" style="max-width: 560px; margin: 0 auto; background-color: #1e293b; border: 1px solid rgba(255, 255, 255, 0.08); border-radius: 24px; padding: 40px; box-shadow: 0 15px 35px rgba(0, 0, 0, 0.4); text-align: left; box-sizing: border-box;">
+                
+                <!-- Logo -->
+                <table border="0" cellpadding="0" cellspacing="0" style="margin-bottom: 28px;">
+                    <tr>
+                        <td style="background-color: #10b981; color: white; width: 36px; height: 36px; border-radius: 10px; text-align: center; font-weight: 800; font-size: 18px; font-family: 'Outfit', sans-serif;">5</td>
+                        <td style="font-size: 20px; font-weight: 800; color: #ffffff; letter-spacing: 0.5px; font-family: 'Outfit', sans-serif; padding-left: 10px; vertical-align: middle;">5 Letter Word</td>
+                    </tr>
+                </table>
+                
+                <!-- Title -->
+                <h1 style="color: #ffffff; font-size: 22px; font-weight: 800; margin-top: 0; margin-bottom: 12px; line-height: 1.3; font-family: 'Outfit', sans-serif;">Reset Your Password</h1>
+                
+                <!-- Body Text -->
+                <p style="color: #94a3b8; font-size: 15px; line-height: 1.6; margin-top: 0; margin-bottom: 20px; font-family: 'Outfit', sans-serif;">
+                    Hello ${user.display_name || user.username || 'there'},
+                    <br/><br/>
+                    We received a request to reset the password for your 5 Letter Word account. Click the button below to choose a new password. This link is valid for 1 hour.
+                </p>
+                
+                <!-- Call To Action Button -->
+                <div style="margin-top: 30px; margin-bottom: 30px; text-align: left;">
+                    <a href="${resetUrl}" style="background-color: #10b981; color: #ffffff; padding: 12px 28px; text-decoration: none; border-radius: 12px; font-weight: bold; font-size: 15px; display: inline-block; font-family: 'Outfit', sans-serif; box-shadow: 0 4px 12px rgba(16, 185, 129, 0.25);">
+                        Reset Password
+                    </a>
+                </div>
+                
+                <p style="color: #64748b; font-size: 13px; line-height: 1.6; font-family: 'Outfit', sans-serif;">
+                    If you didn't request a password reset, you can safely ignore this email. Your password will remain unchanged.
+                </p>
+
+                <!-- Divider -->
+                <hr style="border: 0; border-top: 1px solid rgba(255, 255, 255, 0.08); margin: 30px 0;" />
+                
+                <!-- Footer -->
+                <p style="font-size: 11px; color: #4b5563; line-height: 1.6; margin-top: 0; margin-bottom: 0; font-family: 'Outfit', sans-serif;">
+                    5 Letter Word Recovery Assistant
+                </p>
+                
+            </div>
+        </body>
+        </html>
+      `;
+
+      await resend.emails.send({
+        from: fromField,
+        to: user.email,
+        subject: "Reset your 5 Letter Word password",
+        html: emailHtml
+      });
+    }
+
+    res.json({ success: true, message: "If an account matches that email, a reset link has been sent." });
+
+  } catch (error) {
+    console.error("Forgot password error:", error);
+    res.status(500).json({ error: "Failed to process forgot password request." });
+  }
+});
+
+app.post('/api/auth/reset-password', async (req, res) => {
+  if (!pool) return res.status(500).json({ error: "Database not configured" });
+
+  const { token, newPassword } = req.body;
+  if (!token || !newPassword) {
+    return res.status(400).json({ error: "Token and new password are required." });
+  }
+
+  if (newPassword.length < 6) {
+    return res.status(400).json({ error: "Password must be at least 6 characters." });
+  }
+
+  try {
+    const userRes = await pool.query(`
+      SELECT google_id, email, username, display_name, picture, is_dev, history, email_consent, skip_email_prompt, reset_password_expires
+      FROM users
+      WHERE reset_password_token = $1
+    `, [token]);
+
+    if (userRes.rows.length === 0) {
+      return res.status(400).json({ error: "Invalid or expired reset token." });
+    }
+
+    const user = userRes.rows[0];
+
+    const now = new Date();
+    const expires = new Date(user.reset_password_expires);
+    if (now > expires) {
+      return res.status(400).json({ error: "Reset token has expired." });
+    }
+
+    const hashedPassword = hashPassword(newPassword);
+
+    await pool.query(`
+      UPDATE users 
+      SET password_hash = $1, reset_password_token = NULL, reset_password_expires = NULL 
+      WHERE google_id = $2
+    `, [hashedPassword, user.google_id]);
+
+    const sessionToken = crypto.randomBytes(32).toString('hex');
+    await pool.query(`
+      INSERT INTO sessions (session_token, google_id)
+      VALUES ($1, $2)
+    `, [sessionToken, user.google_id]);
+
+    res.json({
+      token: sessionToken,
+      history: sanitizeHistory(user.history),
+      username: user.username,
+      isDev: user.is_dev,
+      emailConsent: user.email_consent,
+      skipEmailPrompt: user.skip_email_prompt,
+      user: { name: user.display_name, picture: user.picture, email: user.email }
+    });
+
+  } catch (error) {
+    console.error("Reset password error:", error);
+    res.status(500).json({ error: "Failed to reset password." });
   }
 });
 

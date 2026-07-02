@@ -139,7 +139,7 @@ export default function App() {
   const [isAcceptFriendOpen, setIsAcceptFriendOpen] = useState(false);
 
   // Credentials Authentication States
-  const [authMode, setAuthMode] = useState<'login' | 'register'>('login');
+  const [authMode, setAuthMode] = useState<'login' | 'register' | 'forgot'>('login');
   const [authUsername, setAuthUsername] = useState('');
   const [authPassword, setAuthPassword] = useState('');
   const [authError, setAuthError] = useState('');
@@ -152,6 +152,15 @@ export default function App() {
   const [showGoogleConsentModal, setShowGoogleConsentModal] = useState(false);
   const [skipEmailPrompt, setSkipEmailPrompt] = useState(false);
   const [qrCodeImageSrc, setQrCodeImageSrc] = useState('');
+
+  // Password Recovery States
+  const [forgotEmail, setForgotEmail] = useState('');
+  const [forgotSuccessMsg, setForgotSuccessMsg] = useState('');
+  const [resetToken, setResetToken] = useState<string | null>(null);
+  const [newPassword, setNewPassword] = useState('');
+  const [confirmPassword, setConfirmPassword] = useState('');
+  const [resetError, setResetError] = useState('');
+  const [isSubmittingReset, setIsSubmittingReset] = useState(false);
   
   const countdown = useCountdownToMidnightCT();
   const todayStr = getChicagoTodayStr();
@@ -169,6 +178,18 @@ export default function App() {
       .then(res => res.json())
       .then((data: string[]) => setValidWords(new Set(data)))
       .catch(err => console.error(err));
+  }, []);
+
+  // Check for password reset route and query param
+  useEffect(() => {
+    if (window.location.pathname === '/reset-password') {
+      const tokenParam = new URLSearchParams(window.location.search).get('token');
+      if (tokenParam) {
+        setResetToken(tokenParam);
+      } else {
+        setResetError('Invalid or missing password reset token.');
+      }
+    }
   }, []);
 
   // Pre-load and cache the QR code image the moment the user logs in / username is loaded
@@ -469,6 +490,76 @@ export default function App() {
       setAuthError('server connection failed');
     } finally {
       setIsSubmittingAuth(false);
+    }
+  };
+
+  const handleForgotPassword = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!forgotEmail.trim()) return;
+
+    setIsSubmittingAuth(true);
+    setAuthError('');
+    setForgotSuccessMsg('');
+
+    try {
+      const res = await fetch('/api/auth/forgot-password', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email: forgotEmail.trim() })
+      });
+      const data = await res.json();
+      if (res.ok) {
+        setForgotSuccessMsg(data.message || 'Reset link sent successfully!');
+        setForgotEmail('');
+      } else {
+        setAuthError(data.error || 'Failed to request password reset.');
+      }
+    } catch (err) {
+      console.error(err);
+      setAuthError('server connection failed');
+    } finally {
+      setIsSubmittingAuth(false);
+    }
+  };
+
+  const handleResetPasswordSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!resetToken || !newPassword || !confirmPassword) return;
+
+    if (newPassword !== confirmPassword) {
+      setResetError('Passwords do not match.');
+      return;
+    }
+
+    if (newPassword.length < 6) {
+      setResetError('Password must be at least 6 characters.');
+      return;
+    }
+
+    setIsSubmittingReset(true);
+    setResetError('');
+
+    try {
+      const res = await fetch('/api/auth/reset-password', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ token: resetToken, newPassword })
+      });
+      const data = await res.json();
+      if (res.ok) {
+        setResetToken(null);
+        setNewPassword('');
+        setConfirmPassword('');
+        window.history.pushState({}, '', '/');
+        handleAuthSuccess(data);
+      } else {
+        setResetError(data.error || 'Failed to reset password.');
+      }
+    } catch (err) {
+      console.error(err);
+      setResetError('server connection failed');
+    } finally {
+      setIsSubmittingReset(false);
     }
   };
 
@@ -815,7 +906,7 @@ export default function App() {
         </div>
       )}
 
-      {!token ? (
+      {resetToken ? (
         <div className="login-screen">
           <div className="login-card">
             <div className="login-logo-container">
@@ -826,139 +917,309 @@ export default function App() {
               <h1 className="login-title">5 letter word</h1>
             </div>
 
-            <div className="auth-mode-tabs">
-              <button 
-                type="button"
-                className={`auth-tab-btn ${authMode === 'login' ? 'active' : ''}`}
-                onClick={() => {
-                  setAuthMode('login');
-                  setAuthError('');
-                }}
-              >
-                login
-              </button>
-              <button 
-                type="button"
-                className={`auth-tab-btn ${authMode === 'register' ? 'active' : ''}`}
-                onClick={() => {
-                  setAuthMode('register');
-                  setAuthError('');
-                }}
-              >
-                create account
-              </button>
-            </div>
+            <form onSubmit={handleResetPasswordSubmit} className="credentials-form">
+              <h2 style={{ fontSize: '1.25rem', fontWeight: '800', textAlign: 'center', marginBottom: '8px', color: '#ffffff' }}>
+                reset password
+              </h2>
+              <p style={{ fontSize: '0.82rem', color: '#94a3b8', textAlign: 'center', margin: '0 0 20px 0', textTransform: 'none', lineHeight: '1.4' }}>
+                Choose a new secure password (minimum 6 characters).
+              </p>
 
-            <form onSubmit={handleLocalAuth} className="credentials-form">
-              <div className="input-group-field">
-                <label htmlFor="auth-username">username</label>
+              <div className="input-group-field" style={{ marginBottom: '16px' }}>
+                <label htmlFor="new-password">new password</label>
                 <input
-                  id="auth-username"
-                  type="text"
-                  placeholder="enter username"
-                  value={authUsername}
-                  onChange={e => setAuthUsername(e.target.value.toLowerCase().replace(/[^a-z0-9_]/g, ''))}
-                  maxLength={20}
-                  required
-                  disabled={isSubmittingAuth}
-                />
-              </div>
-
-              <div className="input-group-field">
-                <label htmlFor="auth-password">password</label>
-                <input
-                  id="auth-password"
+                  id="new-password"
                   type="password"
-                  placeholder={authMode === 'login' ? 'enter password' : 'create secure password (min 6 chars)'}
-                  value={authPassword}
-                  onChange={e => setAuthPassword(e.target.value)}
+                  placeholder="minimum 6 characters"
+                  value={newPassword}
+                  onChange={e => setNewPassword(e.target.value)}
                   minLength={6}
                   required
-                  disabled={isSubmittingAuth}
+                  disabled={isSubmittingReset}
                 />
               </div>
 
-              {authMode === 'register' && (
-                <div className="input-group-field" style={{ marginBottom: '12px' }}>
-                  <label htmlFor="auth-email">email (optional)</label>
+              <div className="input-group-field" style={{ marginBottom: '16px' }}>
+                <label htmlFor="confirm-password">confirm new password</label>
+                <input
+                  id="confirm-password"
+                  type="password"
+                  placeholder="re-enter new password"
+                  value={confirmPassword}
+                  onChange={e => setConfirmPassword(e.target.value)}
+                  minLength={6}
+                  required
+                  disabled={isSubmittingReset}
+                />
+              </div>
+
+              {resetError && <div className="auth-error-banner">{resetError}</div>}
+
+              <button type="submit" className="btn btn-primary auth-submit-btn" disabled={isSubmittingReset}>
+                {isSubmittingReset ? 'resetting password...' : 'reset password'}
+              </button>
+
+              <div style={{ textAlign: 'center', marginTop: '16px' }}>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setResetToken(null);
+                    window.history.pushState({}, '', '/');
+                  }}
+                  style={{
+                    background: 'none',
+                    border: 'none',
+                    color: '#94a3b8',
+                    fontSize: '0.82rem',
+                    cursor: 'pointer',
+                    textDecoration: 'underline',
+                    textTransform: 'none'
+                  }}
+                >
+                  cancel and go back
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      ) : !token ? (
+        <div className="login-screen">
+          <div className="login-card">
+            <div className="login-logo-container">
+              <svg className="login-logo" viewBox="0 0 512 512" width="72" height="72">
+                <rect width="512" height="512" rx="128" fill="#10b981"/>
+                <text x="50%" y="54%" dominant-baseline="middle" text-anchor="middle" font-family="'Outfit', sans-serif" font-weight="800" font-size="280" fill="#ffffff">5</text>
+              </svg>
+              <h1 className="login-title">5 letter word</h1>
+            </div>
+
+            {authMode === 'forgot' ? (
+              <form onSubmit={handleForgotPassword} className="credentials-form">
+                <h2 style={{ fontSize: '1.25rem', fontWeight: '800', textAlign: 'center', marginBottom: '8px', color: '#ffffff' }}>
+                  recover account
+                </h2>
+                <p style={{ fontSize: '0.82rem', color: '#94a3b8', textAlign: 'center', margin: '0 0 20px 0', textTransform: 'none', lineHeight: '1.4' }}>
+                  Enter your email address below, and we'll send you a link to reset your password.
+                </p>
+
+                <div className="input-group-field" style={{ marginBottom: '16px' }}>
+                  <label htmlFor="forgot-email">email address</label>
                   <input
-                    id="auth-email"
+                    id="forgot-email"
                     type="email"
-                    placeholder="enter email address"
-                    value={authEmail}
-                    onChange={e => setAuthEmail(e.target.value)}
+                    placeholder="enter your email address"
+                    value={forgotEmail}
+                    onChange={e => setForgotEmail(e.target.value)}
+                    required
                     disabled={isSubmittingAuth}
                     style={{ textTransform: 'none' }}
                   />
-                  <div style={{ fontSize: '0.68rem', color: '#71717a', marginTop: '4px', textTransform: 'none', lineHeight: '1.3' }}>
-                    Suggested for account recovery and daily/weekly notifications.
+                </div>
+
+                {authError && <div className="auth-error-banner">{authError}</div>}
+                {forgotSuccessMsg && (
+                  <div style={{
+                    color: '#10b981',
+                    background: 'rgba(16, 185, 129, 0.08)',
+                    border: '1px solid rgba(16, 185, 129, 0.2)',
+                    borderRadius: '8px',
+                    padding: '10px 12px',
+                    fontSize: '0.78rem',
+                    marginBottom: '16px',
+                    lineHeight: '1.4',
+                    textTransform: 'none'
+                  }}>
+                    {forgotSuccessMsg}
                   </div>
-                </div>
-              )}
+                )}
 
-              {authMode === 'register' && (
-                <div className="auth-consent-container" style={{ display: 'flex', alignItems: 'flex-start', gap: '8px', margin: '12px 0 6px 0' }}>
-                  <input
-                    id="auth-consent-manual"
-                    type="checkbox"
-                    checked={emailConsent}
-                    onChange={e => setEmailConsent(e.target.checked)}
-                    style={{ marginTop: '3px', cursor: 'pointer', accentColor: '#10b981' }}
+                <button type="submit" className="btn btn-primary auth-submit-btn" disabled={isSubmittingAuth}>
+                  {isSubmittingAuth ? 'sending...' : 'send reset link'}
+                </button>
+
+                <div style={{ textAlign: 'center', marginTop: '16px' }}>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setAuthMode('login');
+                      setAuthError('');
+                      setForgotSuccessMsg('');
+                    }}
+                    style={{
+                      background: 'none',
+                      border: 'none',
+                      color: '#94a3b8',
+                      fontSize: '0.82rem',
+                      cursor: 'pointer',
+                      textDecoration: 'underline',
+                      textTransform: 'none'
+                    }}
+                  >
+                    back to login
+                  </button>
+                </div>
+              </form>
+            ) : (
+              <>
+                <div className="auth-mode-tabs">
+                  <button 
+                    type="button"
+                    className={`auth-tab-btn ${authMode === 'login' ? 'active' : ''}`}
+                    onClick={() => {
+                      setAuthMode('login');
+                      setAuthError('');
+                    }}
+                  >
+                    login
+                  </button>
+                  <button 
+                    type="button"
+                    className={`auth-tab-btn ${authMode === 'register' ? 'active' : ''}`}
+                    onClick={() => {
+                      setAuthMode('register');
+                      setAuthError('');
+                    }}
+                  >
+                    create account
+                  </button>
+                </div>
+
+                <form onSubmit={handleLocalAuth} className="credentials-form">
+                  <div className="input-group-field">
+                    <label htmlFor="auth-username">username</label>
+                    <input
+                      id="auth-username"
+                      type="text"
+                      placeholder="enter username"
+                      value={authUsername}
+                      onChange={e => setAuthUsername(e.target.value.toLowerCase().replace(/[^a-z0-9_]/g, ''))}
+                      maxLength={20}
+                      required
+                      disabled={isSubmittingAuth}
+                    />
+                  </div>
+
+                  <div className="input-group-field">
+                    <label htmlFor="auth-password">password</label>
+                    <input
+                      id="auth-password"
+                      type="password"
+                      placeholder={authMode === 'login' ? 'enter password' : 'create secure password (min 6 chars)'}
+                      value={authPassword}
+                      onChange={e => setAuthPassword(e.target.value)}
+                      minLength={6}
+                      required
+                      disabled={isSubmittingAuth}
+                    />
+                    {authMode === 'login' && (
+                      <div style={{ textAlign: 'right', marginTop: '6px' }}>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setAuthMode('forgot');
+                            setAuthError('');
+                          }}
+                          style={{
+                            background: 'none',
+                            border: 'none',
+                            color: '#10b981',
+                            fontSize: '0.78rem',
+                            cursor: 'pointer',
+                            padding: 0,
+                            textDecoration: 'underline',
+                            textTransform: 'none',
+                            fontWeight: '500'
+                          }}
+                        >
+                          forgot password?
+                        </button>
+                      </div>
+                    )}
+                  </div>
+
+                  {authMode === 'register' && (
+                    <div className="input-group-field" style={{ marginBottom: '12px' }}>
+                      <label htmlFor="auth-email">email (optional)</label>
+                      <input
+                        id="auth-email"
+                        type="email"
+                        placeholder="enter email address"
+                        value={authEmail}
+                        onChange={e => setAuthEmail(e.target.value)}
+                        disabled={isSubmittingAuth}
+                        style={{ textTransform: 'none' }}
+                      />
+                      <div style={{ fontSize: '0.68rem', color: '#71717a', marginTop: '4px', textTransform: 'none', lineHeight: '1.3' }}>
+                        Suggested for account recovery and daily/weekly notifications.
+                      </div>
+                    </div>
+                  )}
+
+                  {authMode === 'register' && (
+                    <div className="auth-consent-container" style={{ display: 'flex', alignItems: 'flex-start', gap: '8px', margin: '12px 0 6px 0' }}>
+                      <input
+                        id="auth-consent-manual"
+                        type="checkbox"
+                        checked={emailConsent}
+                        onChange={e => setEmailConsent(e.target.checked)}
+                        style={{ marginTop: '3px', cursor: 'pointer', accentColor: '#10b981' }}
+                      />
+                      <label htmlFor="auth-consent-manual" style={{ fontSize: '0.78rem', color: '#a1a1aa', cursor: 'pointer', lineHeight: '1.4', fontWeight: '500', textTransform: 'none', letterSpacing: 'normal' }}>
+                        I consent to receive daily reminders and weekly digests to keep my streak active.
+                      </label>
+                    </div>
+                  )}
+
+                  {authError && <div className="auth-error-banner">{authError}</div>}
+
+                  <button type="submit" className="btn btn-primary auth-submit-btn" disabled={isSubmittingAuth}>
+                    {isSubmittingAuth ? 'authenticating...' : authMode === 'login' ? 'login' : 'register'}
+                  </button>
+                </form>
+
+                <div className="auth-divider">
+                  <span>or sign in with</span>
+                </div>
+
+                <div className="google-auth-wrapper">
+                  <GoogleLogin
+                    onSuccess={credentialResponse => {
+                      const userToken = credentialResponse.credential!;
+                      localStorage.setItem('token', userToken);
+                      setToken(userToken);
+                      fetch('/api/auth', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ token: userToken })
+                      })
+                      .then(r => {
+                        if (!r.ok) {
+                          throw new Error('Auth failed on server');
+                        }
+                        return r.json();
+                      })
+                      .then(data => {
+                        handleAuthSuccess(data);
+                      })
+                      .catch(err => {
+                        console.error("Login verification failed", err);
+                        localStorage.removeItem('token');
+                        localStorage.removeItem('username');
+                        localStorage.removeItem('userProfile');
+                        setToken(null);
+                        setUsername(null);
+                        setUserProfile(null);
+                        setAuthError('Google sign in failed');
+                      });
+                    }}
+                    onError={() => {
+                      console.log('Login Failed');
+                      setAuthError('Google authentication failed');
+                    }}
                   />
-                  <label htmlFor="auth-consent-manual" style={{ fontSize: '0.78rem', color: '#a1a1aa', cursor: 'pointer', lineHeight: '1.4', fontWeight: '500', textTransform: 'none', letterSpacing: 'normal' }}>
-                    I consent to receive daily reminders and weekly digests to keep my streak active.
-                  </label>
                 </div>
-              )}
-
-              {authError && <div className="auth-error-banner">{authError}</div>}
-
-              <button type="submit" className="btn btn-primary auth-submit-btn" disabled={isSubmittingAuth}>
-                {isSubmittingAuth ? 'authenticating...' : authMode === 'login' ? 'login' : 'register'}
-              </button>
-            </form>
-
-            <div className="auth-divider">
-              <span>or sign in with</span>
-            </div>
-
-            <div className="google-auth-wrapper">
-              <GoogleLogin
-                onSuccess={credentialResponse => {
-                  const userToken = credentialResponse.credential!;
-                  localStorage.setItem('token', userToken);
-                  setToken(userToken);
-                  fetch('/api/auth', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ token: userToken })
-                  })
-                  .then(r => {
-                    if (!r.ok) {
-                      throw new Error('Auth failed on server');
-                    }
-                    return r.json();
-                  })
-                  .then(data => {
-                    handleAuthSuccess(data);
-                  })
-                  .catch(err => {
-                    console.error("Login verification failed", err);
-                    localStorage.removeItem('token');
-                    localStorage.removeItem('username');
-                    localStorage.removeItem('userProfile');
-                    setToken(null);
-                    setUsername(null);
-                    setUserProfile(null);
-                    setAuthError('Google sign in failed');
-                  });
-                }}
-                onError={() => {
-                  console.log('Login Failed');
-                  setAuthError('Google authentication failed');
-                }}
-              />
-            </div>
+              </>
+            )}
           </div>
         </div>
       ) : !username ? (
