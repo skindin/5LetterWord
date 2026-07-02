@@ -860,8 +860,12 @@ async function sendPrebuiltEmail(user, emailType, todayDateStr) {
     `;
 
     try {
+        const fromField = sender.includes('<') && sender.includes('>') 
+            ? sender 
+            : `"5LetterWord" <${sender}>`;
+
         await resend.emails.send({
-            from: `5LetterWord <${sender}>`,
+            from: fromField,
             to: user.email,
             subject: subject,
             html: emailHtml
