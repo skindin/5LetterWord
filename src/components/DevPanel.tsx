@@ -58,6 +58,7 @@ export default function DevPanel({ token }: Props) {
   const [confirmWipeDay, setConfirmWipeDay] = useState<{ user: User; date: string } | null>(null);
   const [confirmWipeWord, setConfirmWipeWord] = useState<{ user: User; index: number; word: string } | null>(null);
   const [expandedUser, setExpandedUser] = useState<string | null>(null);
+  const [activeEmailDropdown, setActiveEmailDropdown] = useState<string | null>(null);
 
   const [error, setError] = useState<string | null>(null);
 
@@ -347,33 +348,117 @@ export default function DevPanel({ token }: Props) {
                     >
                       {expandedUser === u.google_id ? '▲ Hide' : '▼ History'}
                     </button>
-                    <select
-                      className="dev-panel-email-select"
-                      onChange={(e) => {
-                        if (e.target.value) {
-                          handleSendEmail(u, e.target.value);
-                          e.target.value = ""; // Reset dropdown
-                        }
-                      }}
-                      defaultValue=""
-                      style={{
-                        background: 'rgba(16,185,129,0.15)',
-                        border: '1px solid rgba(16,185,129,0.3)',
-                        color: '#34d399',
-                        borderRadius: '6px',
-                        padding: '2px 4px',
-                        fontSize: '0.72rem',
-                        fontWeight: 'bold',
-                        cursor: 'pointer',
-                        outline: 'none',
-                        height: '24px'
-                      }}
-                    >
-                      <option value="" style={{ background: '#1e293b', color: '#94a3b8' }}>✉ Send Email</option>
-                      <option value="live_streak" style={{ background: '#1e293b', color: '#f8fafc' }}>Live Streak</option>
-                      <option value="lost_streak" style={{ background: '#1e293b', color: '#f8fafc' }}>Lost Streak</option>
-                      <option value="weekly_digest" style={{ background: '#1e293b', color: '#f8fafc' }}>Weekly Digest</option>
-                    </select>
+                    <div className="dev-panel-dropdown-container" style={{ position: 'relative', display: 'inline-block' }}>
+                      <button
+                        className="dev-panel-btn-wipe"
+                        onClick={() => setActiveEmailDropdown(activeEmailDropdown === u.google_id ? null : u.google_id)}
+                        style={{
+                          background: 'rgba(16,185,129,0.15)',
+                          border: '1px solid rgba(16,185,129,0.3)',
+                          color: '#34d399'
+                        }}
+                      >
+                        {activeEmailDropdown === u.google_id ? '▲ Email' : '▼ Email'}
+                      </button>
+                      
+                      {activeEmailDropdown === u.google_id && (
+                        <>
+                          <div 
+                            style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, zIndex: 90 }} 
+                            onClick={() => setActiveEmailDropdown(null)} 
+                          />
+                          <div
+                            className="dev-panel-dropdown-menu"
+                            style={{
+                              position: 'absolute',
+                              top: '26px',
+                              right: 0,
+                              background: '#1e293b',
+                              border: '1px solid rgba(255, 255, 255, 0.08)',
+                              borderRadius: '8px',
+                              boxShadow: '0 10px 25px rgba(0, 0, 0, 0.5)',
+                              zIndex: 100,
+                              minWidth: '130px',
+                              padding: '4px',
+                              display: 'flex',
+                              flexDirection: 'column',
+                              gap: '2px',
+                              boxSizing: 'border-box'
+                            }}
+                          >
+                            <button
+                              onClick={() => {
+                                handleSendEmail(u, 'live_streak');
+                                setActiveEmailDropdown(null);
+                              }}
+                              style={{
+                                background: 'none',
+                                border: 'none',
+                                color: '#e2e8f0',
+                                textAlign: 'left',
+                                padding: '6px 8px',
+                                fontSize: '0.72rem',
+                                borderRadius: '4px',
+                                cursor: 'pointer',
+                                width: '100%',
+                                transition: 'background 0.2s',
+                                fontWeight: '600'
+                              }}
+                              onMouseEnter={(e) => (e.currentTarget.style.background = 'rgba(255,255,255,0.05)')}
+                              onMouseLeave={(e) => (e.currentTarget.style.background = 'none')}
+                            >
+                              Live Streak
+                            </button>
+                            <button
+                              onClick={() => {
+                                handleSendEmail(u, 'lost_streak');
+                                setActiveEmailDropdown(null);
+                              }}
+                              style={{
+                                background: 'none',
+                                border: 'none',
+                                color: '#e2e8f0',
+                                textAlign: 'left',
+                                padding: '6px 8px',
+                                fontSize: '0.72rem',
+                                borderRadius: '4px',
+                                cursor: 'pointer',
+                                width: '100%',
+                                transition: 'background 0.2s',
+                                fontWeight: '600'
+                              }}
+                              onMouseEnter={(e) => (e.currentTarget.style.background = 'rgba(255,255,255,0.05)')}
+                              onMouseLeave={(e) => (e.currentTarget.style.background = 'none')}
+                            >
+                              Lost Streak
+                            </button>
+                            <button
+                              onClick={() => {
+                                handleSendEmail(u, 'weekly_digest');
+                                setActiveEmailDropdown(null);
+                              }}
+                              style={{
+                                background: 'none',
+                                border: 'none',
+                                color: '#e2e8f0',
+                                textAlign: 'left',
+                                padding: '6px 8px',
+                                fontSize: '0.72rem',
+                                borderRadius: '4px',
+                                cursor: 'pointer',
+                                width: '100%',
+                                transition: 'background 0.2s',
+                                fontWeight: '600'
+                              }}
+                              onMouseEnter={(e) => (e.currentTarget.style.background = 'rgba(255,255,255,0.05)')}
+                              onMouseLeave={(e) => (e.currentTarget.style.background = 'none')}
+                            >
+                              Weekly Digest
+                            </button>
+                          </div>
+                        </>
+                      )}
+                    </div>
                     <button
                       className="dev-panel-btn-wipe"
                       onClick={() => setConfirmTarget({ user: u, action: 'wipe' })}
