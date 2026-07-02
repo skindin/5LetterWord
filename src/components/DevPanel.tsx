@@ -368,7 +368,7 @@ export default function DevPanel({ token }: Props) {
                             style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, zIndex: 90 }} 
                             onClick={() => setActiveEmailDropdown(null)} 
                           />
-                          <div
+                           <div
                             className="dev-panel-dropdown-menu"
                             style={{
                               position: 'absolute',
@@ -379,14 +379,44 @@ export default function DevPanel({ token }: Props) {
                               borderRadius: '8px',
                               boxShadow: '0 10px 25px rgba(0, 0, 0, 0.5)',
                               zIndex: 100,
-                              minWidth: '130px',
-                              padding: '4px',
+                              minWidth: '140px',
+                              padding: '6px',
                               display: 'flex',
                               flexDirection: 'column',
                               gap: '2px',
                               boxSizing: 'border-box'
                             }}
                           >
+                            <label style={{
+                              display: 'flex',
+                              alignItems: 'center',
+                              gap: '6px',
+                              fontSize: '0.72rem',
+                              color: '#94a3b8',
+                              padding: '4px 6px 8px 6px',
+                              borderRadius: '4px',
+                              cursor: 'pointer',
+                              userSelect: 'none',
+                              fontWeight: '600',
+                              borderBottom: '1px solid rgba(255, 255, 255, 0.08)',
+                              marginBottom: '4px'
+                            }}>
+                              <input
+                                type="checkbox"
+                                checked={!!u.email_consent}
+                                onChange={async (e) => {
+                                  const newConsent = e.target.checked;
+                                  try {
+                                    await apiPost('/api/dev/update-consent', { targetGoogleId: u.google_id, consent: newConsent });
+                                    await fetchUsers(); // Refresh the list
+                                  } catch (err: any) {
+                                    setError(err.message);
+                                  }
+                                }}
+                                style={{ cursor: 'pointer', accentColor: '#10b981', margin: 0 }}
+                              />
+                              Consent Opt-in
+                            </label>
                             <button
                               onClick={() => {
                                 handleSendEmail(u, 'live_streak');
@@ -460,23 +490,6 @@ export default function DevPanel({ token }: Props) {
                         </>
                       )}
                     </div>
-                    <label style={{ display: 'inline-flex', alignItems: 'center', gap: '6px', fontSize: '0.72rem', color: '#94a3b8', cursor: 'pointer', userSelect: 'none', background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.08)', borderRadius: '6px', padding: '2px 8px', height: '24px', boxSizing: 'border-box' }}>
-                      <input
-                        type="checkbox"
-                        checked={!!u.email_consent}
-                        onChange={async (e) => {
-                          const newConsent = e.target.checked;
-                          try {
-                            await apiPost('/api/dev/update-consent', { targetGoogleId: u.google_id, consent: newConsent });
-                            await fetchUsers(); // Refresh the list
-                          } catch (err: any) {
-                            setError(err.message);
-                          }
-                        }}
-                        style={{ cursor: 'pointer', accentColor: '#10b981', margin: 0 }}
-                      />
-                      Consent
-                    </label>
                     <button
                       className="dev-panel-btn-wipe"
                       onClick={() => setConfirmTarget({ user: u, action: 'wipe' })}

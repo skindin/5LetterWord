@@ -715,10 +715,17 @@ async function sendPrebuiltEmail(user, emailType, todayDateStr) {
     let extraHtml = "";
 
     if (emailType === 'live_streak') {
-        subject = `Keep your ${currentStreak || 1}-day streak alive! 🚀`;
-        emailTitle = "Keep Your Streak Going!";
-        emailDescription = `You currently have a live <strong>${currentStreak || 1}-day streak</strong>! Don't let it slip away. Play today's 5LetterWord puzzle before midnight to keep it active.`;
-        actionButtonText = "Play 5LetterWord Now";
+        if (currentStreak > 0) {
+            subject = `Keep your ${currentStreak}-day streak alive! 🚀`;
+            emailTitle = "Keep Your Streak Going!";
+            emailDescription = `You currently have a live <strong>${currentStreak}-day streak</strong>! Don't let it slip away. Play today's 5LetterWord puzzle before midnight to keep it active.`;
+            actionButtonText = "Keep My Streak Active";
+        } else {
+            subject = "Start your daily win streak today! 🚀";
+            emailTitle = "Start Your Win Streak!";
+            emailDescription = `Today is the perfect day to start a brand new daily win streak on 5LetterWord! Play today's puzzle before midnight to lock in your first win.`;
+            actionButtonText = "Start My Streak";
+        }
     } else if (emailType === 'lost_streak') {
         // Calculate the streak that was just lost (which was active 2 days ago)
         const twoDaysAgo = new Date();
@@ -726,10 +733,17 @@ async function sendPrebuiltEmail(user, emailType, todayDateStr) {
         const twoDaysAgoStr = formatInTimeZone(twoDaysAgo, 'America/Chicago', 'yyyy-MM-dd');
         const { currentStreak: lostStreak } = getStreakStats(user.history, twoDaysAgoStr);
 
-        subject = "Oh no, you lost your streak! 😢";
-        emailTitle = "Your Streak Broke";
-        emailDescription = `It looks like you missed yesterday's puzzle, and your streak of <strong>${lostStreak || 1} days</strong> has broken. But don't worry—streaks are made to be broken, and today is the perfect day to start a brand new one!`;
-        actionButtonText = "Start a New Streak";
+        if (lostStreak > 1) {
+            subject = `Oh no, your ${lostStreak}-day streak broke! 😢`;
+            emailTitle = "Streak Broken, But Not Forgotten!";
+            emailDescription = `It looks like you missed yesterday's word, and your amazing <strong>${lostStreak}-day win streak</strong> has come to an end. But don't let that stop you—every champion starts from day one. Today's puzzle is live, start a fresh streak and see how high you can climb this time!`;
+            actionButtonText = "Start a Fresh Streak";
+        } else {
+            subject = "Missed yesterday's word? Start fresh today! 🚀";
+            emailTitle = "Time for a Fresh Start!";
+            emailDescription = `It looks like you missed yesterday's word, but today is a brand new day! Start a new win streak today and see how many consecutive days you can conquer. Today's puzzle is waiting for you!`;
+            actionButtonText = "Start a New Streak";
+        }
     } else if (emailType === 'weekly_digest') {
         subject = "Your 5LetterWord Weekly Update 📊";
         emailTitle = "Weekly Friend Stats Digest";
