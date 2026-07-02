@@ -930,6 +930,29 @@ app.post('/api/user/update-consent', async (req, res) => {
   }
 });
 
+app.post('/api/dev/update-consent', async (req, res) => {
+  const payload = await requireDev(req, res);
+  if (!payload) return;
+
+  const { targetGoogleId, consent } = req.body;
+  if (!targetGoogleId) {
+    return res.status(400).json({ error: "targetGoogleId required" });
+  }
+
+  try {
+    await pool.query(`
+      UPDATE users 
+      SET email_consent = $1
+      WHERE google_id = $2
+    `, [consent === true, targetGoogleId]);
+    
+    res.json({ success: true, emailConsent: consent === true });
+  } catch (e) {
+    console.error("Dev update consent error:", e);
+    res.status(500).json({ error: "Database error while updating consent." });
+  }
+});
+
 app.post('/api/user/link-email', async (req, res) => {
   if (!pool) return res.status(500).json({ error: "Database not configured" });
   
@@ -1015,7 +1038,7 @@ app.post('/api/dev/words', async (req, res) => {
 app.post('/api/dev/users', async (req, res) => {
     if (!await requireDev(req, res)) return;
     const r = await pool.query(
-        'SELECT google_id, email, username, display_name, history FROM users ORDER BY display_name'
+        'SELECT google_id, email, username, display_name, history, email_consent FROM users ORDER BY display_name'
     );
     res.json({ users: r.rows });
 });

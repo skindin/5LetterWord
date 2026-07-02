@@ -13,6 +13,7 @@ interface User {
   username: string | null;
   display_name: string | null;
   history?: Record<number, GameState>;
+  email_consent?: boolean;
 }
 
 interface Props {
@@ -459,6 +460,23 @@ export default function DevPanel({ token }: Props) {
                         </>
                       )}
                     </div>
+                    <label style={{ display: 'inline-flex', alignItems: 'center', gap: '6px', fontSize: '0.72rem', color: '#94a3b8', cursor: 'pointer', userSelect: 'none', background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.08)', borderRadius: '6px', padding: '2px 8px', height: '24px', boxSizing: 'border-box' }}>
+                      <input
+                        type="checkbox"
+                        checked={!!u.email_consent}
+                        onChange={async (e) => {
+                          const newConsent = e.target.checked;
+                          try {
+                            await apiPost('/api/dev/update-consent', { targetGoogleId: u.google_id, consent: newConsent });
+                            await fetchUsers(); // Refresh the list
+                          } catch (err: any) {
+                            setError(err.message);
+                          }
+                        }}
+                        style={{ cursor: 'pointer', accentColor: '#10b981', margin: 0 }}
+                      />
+                      Consent
+                    </label>
                     <button
                       className="dev-panel-btn-wipe"
                       onClick={() => setConfirmTarget({ user: u, action: 'wipe' })}
