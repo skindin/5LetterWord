@@ -718,12 +718,12 @@ async function sendPrebuiltEmail(user, emailType, todayDateStr) {
         if (currentStreak > 0) {
             subject = `Keep your ${currentStreak}-day streak alive! 🚀`;
             emailTitle = "Keep Your Streak Going!";
-            emailDescription = `You currently have a live <strong>${currentStreak}-day streak</strong>! Don't let it slip away. Play today's 5LetterWord puzzle before midnight to keep it active.`;
+            emailDescription = `You currently have a live <strong>${currentStreak}-day streak</strong>! Don't let it slip away. Play today's 5 Letter Word puzzle before midnight to keep it active.`;
             actionButtonText = "Keep My Streak Active";
         } else {
             subject = "Start your daily win streak today! 🚀";
             emailTitle = "Start Your Win Streak!";
-            emailDescription = `Today is the perfect day to start a brand new daily win streak on 5LetterWord! Play today's puzzle before midnight to lock in your first win.`;
+            emailDescription = `Today is the perfect day to start a brand new daily win streak on 5 Letter Word! Play today's puzzle before midnight to lock in your first win.`;
             actionButtonText = "Start My Streak";
         }
     } else if (emailType === 'lost_streak') {
@@ -745,10 +745,10 @@ async function sendPrebuiltEmail(user, emailType, todayDateStr) {
             actionButtonText = "Start a New Streak";
         }
     } else if (emailType === 'weekly_digest') {
-        subject = "Your 5LetterWord Weekly Update 📊";
+        subject = "Your 5 Letter Word Weekly Update 📊";
         emailTitle = "Weekly Friend Stats Digest";
         emailDescription = "It's been a while since your last game! Solve today's puzzle to start a new streak and see if you can top your friends.";
-        actionButtonText = "Play 5LetterWord";
+        actionButtonText = "Play 5 Letter Word";
         
         // Fetch friends
         let friendsList = [];
@@ -801,7 +801,7 @@ async function sendPrebuiltEmail(user, emailType, todayDateStr) {
             friendsHtml += `
                 <div style="margin-top: 25px; margin-bottom: 25px; background: rgba(0, 0, 0, 0.15); border: 1px dashed rgba(255, 255, 255, 0.1); border-radius: 12px; padding: 20px; text-align: center;">
                     <p style="margin: 0; color: #64748b; font-size: 13px; line-height: 1.5; font-family: 'Outfit', sans-serif;">
-                        No friends added yet. Add friends on the Social tab in 5LetterWord to compare your daily streaks!
+                        No friends added yet. Add friends on the Social tab in 5 Letter Word to compare your daily streaks!
                     </p>
                 </div>
             `;
@@ -838,7 +838,7 @@ async function sendPrebuiltEmail(user, emailType, todayDateStr) {
                 <table border="0" cellpadding="0" cellspacing="0" style="margin-bottom: 28px;">
                     <tr>
                         <td style="background-color: #10b981; color: white; width: 36px; height: 36px; border-radius: 10px; text-align: center; font-weight: 800; font-size: 18px; font-family: 'Outfit', sans-serif;">5</td>
-                        <td style="font-size: 20px; font-weight: 800; color: #ffffff; letter-spacing: 0.5px; font-family: 'Outfit', sans-serif; padding-left: 10px; vertical-align: middle;">5LetterWord</td>
+                        <td style="font-size: 20px; font-weight: 800; color: #ffffff; letter-spacing: 0.5px; font-family: 'Outfit', sans-serif; padding-left: 10px; vertical-align: middle;">5 Letter Word</td>
                     </tr>
                 </table>
                 
@@ -863,7 +863,7 @@ async function sendPrebuiltEmail(user, emailType, todayDateStr) {
                 
                 <!-- Footer -->
                 <p style="font-size: 11px; color: #4b5563; line-height: 1.6; margin-top: 0; margin-bottom: 0; font-family: 'Outfit', sans-serif;">
-                    You are receiving this because you signed up for streak reminders on 5LetterWord.
+                    You are receiving this because you signed up for streak reminders on 5 Letter Word.
                     <br />
                     <a href="${unsubscribeUrl}" style="color: #10b981; text-decoration: underline; font-weight: 600;">Unsubscribe from these emails</a>.
                 </p>
@@ -876,7 +876,7 @@ async function sendPrebuiltEmail(user, emailType, todayDateStr) {
     try {
         const fromField = sender.includes('<') && sender.includes('>') 
             ? sender 
-            : `"5LetterWord" <${sender}>`;
+            : `"5 Letter Word" <${sender}>`;
 
         await resend.emails.send({
             from: fromField,
@@ -1303,7 +1303,7 @@ app.get('/api/unsubscribe', async (req, res) => {
             <html>
             <head>
                 <meta charset="utf-8">
-                <title>Unsubscribed - 5LetterWord</title>
+                <title>Unsubscribed - 5 Letter Word</title>
                 <meta name="viewport" content="width=device-width, initial-scale=1.0">
                 <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@400;600;800&display=swap" rel="stylesheet">
                 <style>
@@ -1377,7 +1377,7 @@ app.get('/api/unsubscribe', async (req, res) => {
                         </tr>
                     </table>
                     <h1>Unsubscribed Successfully</h1>
-                    <p>You have been unsubscribed from 5LetterWord email reminders. You will no longer receive daily streak or weekly update emails.</p>
+                    <p>You have been unsubscribed from 5 Letter Word email reminders. You will no longer receive daily streak or weekly update emails.</p>
                     <a href="https://${process.env.RAILWAY_STATIC_URL || '5letterword.up.railway.app'}" class="btn">Back to Game</a>
                 </div>
             </body>
