@@ -92,12 +92,13 @@ export const CalendarModal: React.FC<CalendarModalProps> = ({
     const finished = levels.filter(g => g.status !== 'playing');
     if (finished.length === 0) return 'playing';
 
-    const wonAll = finished.every(g => g.status === 'won');
-    const lostAny = finished.some(g => g.status === 'lost');
+    const hasWon = finished.some(g => g.status === 'won');
+    const hasLost = finished.some(g => g.status === 'lost');
 
-    if (wonAll) return 'won';
-    if (lostAny) return 'lost';
-    return 'mixed';
+    if (hasWon && hasLost) return 'mixed';
+    if (hasWon) return 'won';
+    if (hasLost) return 'lost';
+    return '';
   };
 
   // Check if a level's answers can be shown under anti-spoiler rules
