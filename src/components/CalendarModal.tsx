@@ -64,6 +64,13 @@ export const CalendarModal: React.FC<CalendarModalProps> = ({
     setSelectedDateStr(null);
   };
 
+  const handleCurrentMonth = () => {
+    const realToday = new Date();
+    setCurrentYear(realToday.getFullYear());
+    setCurrentMonth(realToday.getMonth());
+    setSelectedDateStr(null);
+  };
+
   // Calendar generation helpers
   const daysInMonth = new Date(currentYear, currentMonth + 1, 0).getDate();
   const startDayOfWeek = new Date(currentYear, currentMonth, 1).getDay(); // 0 = Sun, ..., 6 = Sat
@@ -149,9 +156,30 @@ export const CalendarModal: React.FC<CalendarModalProps> = ({
               <polygon points="15,18 9,12 15,6" fill="currentColor"/>
             </svg>
           </button>
-          <span className="current-month-lbl">
-            {MONTH_NAMES[currentMonth]} {currentYear}
-          </span>
+          <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
+            <span className="current-month-lbl">
+              {MONTH_NAMES[currentMonth]} {currentYear}
+            </span>
+            {(currentMonth !== new Date().getMonth() || currentYear !== new Date().getFullYear()) && (
+              <button 
+                type="button"
+                onClick={handleCurrentMonth} 
+                style={{ 
+                  background: 'none', 
+                  border: 'none', 
+                  color: '#10b981', 
+                  fontSize: '0.7rem', 
+                  cursor: 'pointer', 
+                  textDecoration: 'underline', 
+                  marginTop: '2px',
+                  fontWeight: 'bold',
+                  textTransform: 'lowercase'
+                }}
+              >
+                current month
+              </button>
+            )}
+          </div>
           <button className="nav-arrow" onClick={handleNextMonth}>
             <svg viewBox="0 0 24 24" width="20" height="20">
               <polygon points="9,18 15,12 9,6" fill="currentColor"/>
