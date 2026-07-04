@@ -60,6 +60,9 @@ export default function DevPanel({ token }: Props) {
   const [confirmWipeWord, setConfirmWipeWord] = useState<{ user: User; index: number; word: string } | null>(null);
   const [expandedUser, setExpandedUser] = useState<string | null>(null);
   const [activeEmailDropdown, setActiveEmailDropdown] = useState<string | null>(null);
+  const [calendarYear, setCalendarYear] = useState(new Date().getFullYear());
+  const [calendarMonth, setCalendarMonth] = useState(new Date().getMonth());
+  const [selectedDateStr, setSelectedDateStr] = useState<string | null>(null);
 
   const [error, setError] = useState<string | null>(null);
 
@@ -196,48 +199,161 @@ export default function DevPanel({ token }: Props) {
     }
   };
 
+  const handlePrevMonth = () => {
+    if (calendarMonth === 0) {
+      setCalendarMonth(11);
+      setCalendarYear(prev => prev - 1);
+    } else {
+      setCalendarMonth(prev => prev - 1);
+    }
+    setSelectedDateStr(null);
+  };
+
+  const handleNextMonth = () => {
+    if (calendarMonth === 11) {
+      setCalendarMonth(0);
+      setCalendarYear(prev => prev + 1);
+    } else {
+      setCalendarMonth(prev => prev + 1);
+    }
+    setSelectedDateStr(null);
+  };
+
   const renderPlayerHistory = (u: User) => {
     const historyObj = u.history;
-    if (!historyObj || Object.keys(historyObj).length === 0) {
-      return <div className="dev-panel-no-history" style={{ padding: '8px', fontSize: '0.8rem', color: '#6b7280', textAlign: 'center' }}>No play history recorded.</div>;
-    }
-
     const grouped = groupHistoryByDate(historyObj);
+    
+    const daysInMonth = new Date(calendarYear, calendarMonth + 1, 0).getDate();
+    const startDayOfWeek = new Date(calendarYear, calendarMonth, 1).getDay();
+    const monthName = new Date(calendarYear, calendarMonth).toLocaleString('default', { month: 'long' });
+
     return (
-      <div className="dev-panel-player-history-details" style={{ borderTop: '1px solid rgba(255,255,255,0.06)', paddingTop: '8px', marginTop: '4px', maxHeight: '200px', overflowY: 'auto' }}>
-        {Object.entries(grouped).map(([dateStr, levels]) => (
-          <div key={dateStr} className="dev-panel-history-date-group" style={{ marginBottom: '10px' }}>
-            <div className="dev-panel-history-date-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: 'rgba(255,255,255,0.03)', padding: '4px 6px', borderRadius: '4px' }}>
-              <span className="dev-panel-history-date-lbl" style={{ fontSize: '0.75rem', fontWeight: 'bold', color: '#9ca3af' }}>📅 {dateStr}</span>
+      <div className="dev-panel-player-history-details" style={{ borderTop: '1px solid rgba(255,255,255,0.06)', paddingTop: '8px', marginTop: '4px' }}>
+        
+        {/* Calendar Navigation Header */}
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px', padding: '0 4px' }}>
+          <button 
+            type="button" 
+            onClick={handlePrevMonth} 
+            style={{ background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.1)', color: '#10b981', cursor: 'pointer', fontWeight: 'bold', padding: '2px 8px', borderRadius: '4px', fontSize: '0.75rem' }}
+          >
+            &lt;
+          </button>
+          <span style={{ fontSize: '0.8rem', fontWeight: 'bold', color: '#ffffff' }}>
+            {monthName} {calendarYear}
+          </span>
+          <button 
+            type="button" 
+            onClick={handleNextMonth} 
+            style={{ background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.1)', color: '#10b981', cursor: 'pointer', fontWeight: 'bold', padding: '2px 8px', borderRadius: '4px', fontSize: '0.75rem' }}
+          >
+            &gt;
+          </button>
+        </div>
+
+        {/* Days of the Week Header */}
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7, 1fr)', gap: '4px', textAlign: 'center', marginBottom: '6px' }}>
+          {['Su', 'Mo', 'Tu', 'We', 'Th', 'Fr', 'Sa'].map(day => (
+            <span key={day} style={{ fontSize: '0.65rem', color: '#6b7280', fontWeight: 'bold' }}>{day}</span>
+          ))}
+        </div>
+
+        {/* Calendar Days Grid */}
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7, 1fr)', gap: '4px', textAlign: 'center', marginBottom: '12px' }}>
+          {/* Empty prefix cells for start of month */}
+          {Array.from({ length: startDayOfWeek }).map((_, i) => (
+            <div key={`empty-${i}`} />
+          ))}
+          {/* Day number buttons */}
+          {Array.from({ length: daysInMonth }).map((_, i) => {
+            const day = i + 1;
+            const dateStr = `${calendarYear}-${String(calendarMonth + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
+            const hasPlayed = !!grouped[dateStr] && grouped[dateStr].length > 0;
+            const isSelected = selectedDateStr === dateStr;
+
+            return (
               <button
-                className="dev-panel-btn-wipe"
-                onClick={() => setConfirmWipeDay({ user: u, date: dateStr })}
-                style={{ padding: '1px 4px', fontSize: '0.65rem' }}
+                key={day}
+                type="button"
+                onClick={() => setSelectedDateStr(dateStr)}
+                style={{
+                  background: isSelected 
+                    ? '#6366f1' 
+                    : hasPlayed 
+                      ? 'rgba(16, 185, 129, 0.2)' 
+                      : 'transparent',
+                  border: isSelected 
+                    ? '1px solid #818cf8' 
+                    : hasPlayed
+                      ? '1px solid rgba(16, 185, 129, 0.4)'
+                      : '1px solid rgba(255,255,255,0.05)',
+                  color: isSelected 
+                    ? '#ffffff'
+                    : hasPlayed 
+                      ? '#34d399' 
+                      : '#9ca3af',
+                  borderRadius: '4px',
+                  padding: '4px 0',
+                  fontSize: '0.75rem',
+                  cursor: 'pointer',
+                  fontWeight: hasPlayed ? 'bold' : 'normal',
+                  transition: 'all 0.2s',
+                  outline: 'none'
+                }}
               >
-                Wipe Day
+                {day}
               </button>
+            );
+          })}
+        </div>
+
+        {/* Selected Date Details Panel */}
+        {selectedDateStr ? (
+          <div style={{ background: 'rgba(255,255,255,0.02)', border: '1px solid rgba(255,255,255,0.05)', borderRadius: '8px', padding: '8px' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
+              <span style={{ fontSize: '0.75rem', color: '#9ca3af', fontWeight: 'bold' }}>📅 {selectedDateStr}</span>
+              {grouped[selectedDateStr] && grouped[selectedDateStr].length > 0 && (
+                <button
+                  className="dev-panel-btn-wipe"
+                  onClick={() => setConfirmWipeDay({ user: u, date: selectedDateStr })}
+                  style={{ padding: '2px 8px', fontSize: '0.65rem' }}
+                >
+                  Wipe Day
+                </button>
+              )}
             </div>
-            <div className="dev-panel-history-levels" style={{ display: 'flex', flexDirection: 'column', gap: '3px', marginTop: '4px', paddingLeft: '8px' }}>
-              {levels.map(({ index, game }, seqIndex) => {
-                const targetWord = game.targetWord || 'unknown';
-                return (
-                  <div key={index} className="dev-panel-history-level" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '2px 0' }}>
-                    <span className="dev-panel-history-level-info" style={{ fontSize: '0.72rem', color: '#d1d5db' }}>
-                      Word #{seqIndex + 1} (Lvl {index}): <code style={{ color: '#fbbf24', fontStyle: 'normal' }}>{targetWord.toUpperCase()}</code> ({game.guesses.length}/6, {game.status})
-                    </span>
-                    <button
-                      className="dev-panel-btn-delete"
-                      onClick={() => setConfirmWipeWord({ user: u, index, word: targetWord })}
-                      style={{ padding: '1px 4px', fontSize: '0.65rem' }}
-                    >
-                      Wipe Word
-                    </button>
-                  </div>
-                );
-              })}
-            </div>
+
+            {grouped[selectedDateStr] && grouped[selectedDateStr].length > 0 ? (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+                {grouped[selectedDateStr].map(({ index, game }, seqIndex) => {
+                  const targetWord = game.targetWord || 'unknown';
+                  return (
+                    <div key={index} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '4px 6px', background: 'rgba(255,255,255,0.02)', borderRadius: '4px', border: '1px solid rgba(255,255,255,0.03)' }}>
+                      <span style={{ fontSize: '0.72rem', color: '#d1d5db' }}>
+                        Word #{seqIndex + 1} (Lvl {index}): <code style={{ color: '#fbbf24', fontStyle: 'normal' }}>{targetWord.toUpperCase()}</code> ({game.guesses.length}/6, {game.status})
+                      </span>
+                      <button
+                        className="dev-panel-btn-delete"
+                        onClick={() => setConfirmWipeWord({ user: u, index, word: targetWord })}
+                        style={{ padding: '2px 6px', fontSize: '0.65rem' }}
+                      >
+                        Wipe Word
+                      </button>
+                    </div>
+                  );
+                })}
+              </div>
+            ) : (
+              <div style={{ fontSize: '0.72rem', color: '#6b7280', textAlign: 'center', padding: '6px' }}>
+                No play history recorded on this day.
+              </div>
+            )}
           </div>
-        ))}
+        ) : (
+          <div style={{ fontSize: '0.72rem', color: '#6b7280', textAlign: 'center', padding: '8px', background: 'rgba(255,255,255,0.01)', borderRadius: '6px', border: '1px dashed rgba(255,255,255,0.05)' }}>
+            Select a day from the calendar to inspect or edit words.
+          </div>
+        )}
       </div>
     );
   };
@@ -344,7 +460,16 @@ export default function DevPanel({ token }: Props) {
                   <div className="dev-panel-player-actions">
                     <button
                       className="dev-panel-btn-wipe"
-                      onClick={() => setExpandedUser(expandedUser === u.google_id ? null : u.google_id)}
+                      onClick={() => {
+                        if (expandedUser === u.google_id) {
+                          setExpandedUser(null);
+                        } else {
+                          setExpandedUser(u.google_id);
+                          setCalendarMonth(new Date().getMonth());
+                          setCalendarYear(new Date().getFullYear());
+                          setSelectedDateStr(null);
+                        }
+                      }}
                       style={{ background: 'rgba(99,102,241,0.15)', border: '1px solid rgba(99,102,241,0.3)', color: '#818cf8' }}
                     >
                       {expandedUser === u.google_id ? '▲ Hide' : '▼ History'}
