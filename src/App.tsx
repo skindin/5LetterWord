@@ -771,6 +771,11 @@ export default function App() {
     wordNumStr = `word #${wordNum}`;
   }
 
+  const dayLevels = Object.entries(history)
+    .map(([idx, g]) => ({ index: Number(idx), ...g }))
+    .filter(g => g.date === activeDate)
+    .sort((a, b) => a.index - b.index);
+
   const isLeftDisabled = viewingIndex === 0 || 
                          !history[viewingIndex - 1] || 
                          history[viewingIndex - 1].date !== activeDate;
@@ -1284,9 +1289,44 @@ export default function App() {
           {currentView === 'game' ? (
             <main>
               {formattedDateStr && (
-                <div className="game-header">
-                  {formattedDateStr}, <strong>{wordNumStr}</strong>
-                  {activeDate === todayStr ? ` - ${countdown} until next word list` : ' - view only'}
+                <div className="game-header" style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '4px' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                    <span>{formattedDateStr}, <strong>{wordNumStr}</strong></span>
+                    {activeDate !== todayStr && (
+                      <button
+                        className="tab-btn"
+                        onClick={() => {
+                          const todayLevels = Object.entries(history)
+                            .map(([idx, g]) => ({ index: Number(idx), ...g }))
+                            .filter(g => g.date === todayStr);
+                          if (todayLevels.length > 0) {
+                            const sortedToday = todayLevels.sort((a, b) => a.index - b.index);
+                            const activeToday = sortedToday.find(g => g.status === 'playing') || sortedToday[sortedToday.length - 1];
+                            setViewingIndex(activeToday.index);
+                          } else {
+                            const maxIndex = Math.max(0, ...Object.keys(history).map(Number));
+                            setViewingIndex(maxIndex);
+                          }
+                          setCurrentGuess('');
+                          setMessage('');
+                        }}
+                        style={{
+                          padding: '2px 8px',
+                          fontSize: '0.7rem',
+                          background: 'rgba(16,185,129,0.15)',
+                          border: '1px solid rgba(16,185,129,0.3)',
+                          color: '#34d399',
+                          borderRadius: '4px',
+                          cursor: 'pointer'
+                        }}
+                      >
+                        today
+                      </button>
+                    )}
+                  </div>
+                  <div style={{ fontSize: '0.75rem', color: '#6b7280' }}>
+                    {activeDate === todayStr ? `${countdown} until next word list` : 'view only (past day)'}
+                  </div>
                 </div>
               )}
               
@@ -1322,6 +1362,55 @@ export default function App() {
                   </svg>
                 </button>
               </div>
+
+              {dayLevels.length > 1 && (
+                <div style={{ display: 'flex', justifyContent: 'center', gap: '16px', marginTop: '4px', marginBottom: '12px' }}>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setViewingIndex(dayLevels[0].index);
+                      setCurrentGuess('');
+                      setMessage('');
+                    }}
+                    disabled={viewingIndex === dayLevels[0].index}
+                    style={{
+                      background: viewingIndex === dayLevels[0].index ? 'none' : 'rgba(99,102,241,0.1)',
+                      border: '1px solid rgba(99,102,241,0.2)',
+                      color: viewingIndex === dayLevels[0].index ? '#4b5563' : '#818cf8',
+                      cursor: viewingIndex === dayLevels[0].index ? 'default' : 'pointer',
+                      fontSize: '0.75rem',
+                      fontWeight: 'bold',
+                      padding: '4px 10px',
+                      borderRadius: '4px',
+                      transition: 'all 0.2s'
+                    }}
+                  >
+                    « first word
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setViewingIndex(dayLevels[dayLevels.length - 1].index);
+                      setCurrentGuess('');
+                      setMessage('');
+                    }}
+                    disabled={viewingIndex === dayLevels[dayLevels.length - 1].index}
+                    style={{
+                      background: viewingIndex === dayLevels[dayLevels.length - 1].index ? 'none' : 'rgba(99,102,241,0.1)',
+                      border: '1px solid rgba(99,102,241,0.2)',
+                      color: viewingIndex === dayLevels[dayLevels.length - 1].index ? '#4b5563' : '#818cf8',
+                      cursor: viewingIndex === dayLevels[dayLevels.length - 1].index ? 'default' : 'pointer',
+                      fontSize: '0.75rem',
+                      fontWeight: 'bold',
+                      padding: '4px 10px',
+                      borderRadius: '4px',
+                      transition: 'all 0.2s'
+                    }}
+                  >
+                    last word »
+                  </button>
+                </div>
+              )}
               
               <div className="legend">
                 <div className="legend-item"><span className="tile-mini correct"></span> right place</div>
