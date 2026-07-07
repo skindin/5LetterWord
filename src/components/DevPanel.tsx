@@ -544,6 +544,29 @@ export default function DevPanel({ token }: Props) {
                             </label>
                             <button
                               onClick={() => {
+                                handleSendEmail(u, 'password_reset');
+                                setActiveEmailDropdown(null);
+                              }}
+                              style={{
+                                background: 'none',
+                                border: 'none',
+                                color: '#e2e8f0',
+                                textAlign: 'left',
+                                padding: '6px 8px',
+                                fontSize: '0.72rem',
+                                borderRadius: '4px',
+                                cursor: 'pointer',
+                                width: '100%',
+                                transition: 'background 0.2s',
+                                fontWeight: '600'
+                              }}
+                              onMouseEnter={(e) => (e.currentTarget.style.background = 'rgba(255,255,255,0.05)')}
+                              onMouseLeave={(e) => (e.currentTarget.style.background = 'none')}
+                            >
+                              Password Reset
+                            </button>
+                            <button
+                              onClick={() => {
                                 handleSendEmail(u, 'live_streak');
                                 setActiveEmailDropdown(null);
                               }}
@@ -633,29 +656,6 @@ export default function DevPanel({ token }: Props) {
                               onMouseLeave={(e) => (e.currentTarget.style.background = 'none')}
                             >
                               Weekly Digest
-                            </button>
-                            <button
-                              onClick={() => {
-                                handleSendEmail(u, 'password_reset');
-                                setActiveEmailDropdown(null);
-                              }}
-                              style={{
-                                background: 'none',
-                                border: 'none',
-                                color: '#e2e8f0',
-                                textAlign: 'left',
-                                padding: '6px 8px',
-                                fontSize: '0.72rem',
-                                borderRadius: '4px',
-                                cursor: 'pointer',
-                                width: '100%',
-                                transition: 'background 0.2s',
-                                fontWeight: '600'
-                              }}
-                              onMouseEnter={(e) => (e.currentTarget.style.background = 'rgba(255,255,255,0.05)')}
-                              onMouseLeave={(e) => (e.currentTarget.style.background = 'none')}
-                            >
-                              Password Reset
                             </button>
                           </div>
                         </>
