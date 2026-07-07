@@ -52,6 +52,8 @@ if (process.env.DATABASE_URL) {
     await pool.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS skip_email_prompt BOOLEAN DEFAULT FALSE`);
     await pool.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS reset_password_token TEXT`);
     await pool.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS reset_password_expires TIMESTAMP`);
+    await pool.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP`);
+    await pool.query(`UPDATE users SET created_at = '2026-06-01 00:00:00' WHERE created_at IS NULL`);
     
     // Create relationship table for mutual friendships
     await pool.query(`
@@ -1017,6 +1019,12 @@ async function sendPrebuiltEmail(user, emailType, todayDateStr) {
             `;
         }
         extraHtml = friendsHtml;
+    } else if (emailType === 'welcome_reminder') {
+        subject = "Welcome to 5 Letter Word! Ready for your first puzzle? 🧩";
+        emailTitle = "Welcome to 5 Letter Word!";
+        emailDescription = "Thanks for creating your account! We noticed you haven't played your first puzzle yet. Today's 5 Letter Word is waiting for you—play it before midnight to start your first daily win streak!";
+        actionButtonText = "Play My First Word";
+        actionButtonUrl = appUrl;
     } else if (emailType === 'password_reset') {
         const token = crypto.randomBytes(32).toString('hex');
         const expires = new Date();
@@ -1416,7 +1424,7 @@ app.get('/api/cron/reminders', async (req, res) => {
         }
 
         // Query only players who have registered emails AND have consented to emails
-        const usersRes = await pool.query('SELECT google_id, email, display_name, history FROM users WHERE email IS NOT NULL AND email_consent = TRUE');
+        const usersRes = await pool.query('SELECT google_id, email, display_name, history, created_at FROM users WHERE email IS NOT NULL AND email_consent = TRUE');
         const users = usersRes.rows;
 
         const sentEmails = [];
@@ -1425,10 +1433,10 @@ app.get('/api/cron/reminders', async (req, res) => {
         for (const user of users) {
             const history = user.history || {};
             
-            // Check if played today
-            const playedToday = Object.values(history).some(g => g && g.date === todayDateStr);
+            // Check if played/completed today
+            const playedToday = Object.values(history).some(g => g && g.date === todayDateStr && (g.status === 'won' || g.status === 'lost'));
             if (playedToday) {
-                skippedUsers.push({ google_id: user.google_id, email: user.email, reason: "Played today" });
+                skippedUsers.push({ google_id: user.google_id, email: user.email, reason: "Played/completed today" });
                 continue;
             }
 
@@ -1456,7 +1464,7 @@ app.get('/api/cron/reminders', async (req, res) => {
 
             if (actionType === 'lost_streak') {
                 // Send only if streak just broke today (diffDays === 2) and they did not play yesterday
-                const playedYesterday = Object.values(history).some(g => g && g.date === yesterdayDateStr);
+                const playedYesterday = Object.values(history).some(g => g && g.date === yesterdayDateStr && (g.status === 'won' || g.status === 'lost'));
                 if (diffDays === 2 && !playedYesterday) {
                     shouldSend = true;
                     emailTypeToSend = 'lost_streak';
@@ -1465,13 +1473,31 @@ app.get('/api/cron/reminders', async (req, res) => {
                 // Explicit force of live streak
                 shouldSend = true;
                 emailTypeToSend = 'live_streak';
+            } else if (actionType === 'welcome_reminder') {
+                // Explicit force of welcome reminder
+                shouldSend = true;
+                emailTypeToSend = 'welcome_reminder';
             } else if (actionType === 'weekly_digest') {
                 // Explicit force of weekly digest
                 shouldSend = true;
                 emailTypeToSend = 'weekly_digest';
             } else if (actionType === 'live_streak_or_digest') {
                 // Automated 10 PM run
-                if (diffDays === 1) {
+                const finishedGames = Object.values(history).filter(g => g && (g.status === 'won' || g.status === 'lost'));
+                const createdDate = user.created_at ? new Date(user.created_at) : null;
+                
+                let isNewUserWindow = false;
+                if (createdDate) {
+                    const diffMs = todayDate.getTime() - createdDate.getTime();
+                    const diffHours = diffMs / (1000 * 60 * 60);
+                    isNewUserWindow = diffHours >= 0 && diffHours < 24;
+                }
+
+                if (finishedGames.length === 0 && isNewUserWindow) {
+                    // New user who hasn't completed a word yet, send welcome reminder at 10 PM
+                    shouldSend = true;
+                    emailTypeToSend = 'welcome_reminder';
+                } else if (diffDays === 1) {
                     // Won yesterday, active streak, remind them before midnight Chicago time
                     shouldSend = true;
                     emailTypeToSend = 'live_streak';

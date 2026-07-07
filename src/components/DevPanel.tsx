@@ -567,6 +567,29 @@ export default function DevPanel({ token }: Props) {
                             </button>
                             <button
                               onClick={() => {
+                                handleSendEmail(u, 'welcome_reminder');
+                                setActiveEmailDropdown(null);
+                              }}
+                              style={{
+                                background: 'none',
+                                border: 'none',
+                                color: '#e2e8f0',
+                                textAlign: 'left',
+                                padding: '6px 8px',
+                                fontSize: '0.72rem',
+                                borderRadius: '4px',
+                                cursor: 'pointer',
+                                width: '100%',
+                                transition: 'background 0.2s',
+                                fontWeight: '600'
+                              }}
+                              onMouseEnter={(e) => (e.currentTarget.style.background = 'rgba(255,255,255,0.05)')}
+                              onMouseLeave={(e) => (e.currentTarget.style.background = 'none')}
+                            >
+                              Welcome Reminder
+                            </button>
+                            <button
+                              onClick={() => {
                                 handleSendEmail(u, 'lost_streak');
                                 setActiveEmailDropdown(null);
                               }}
