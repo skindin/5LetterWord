@@ -20,7 +20,7 @@ interface Props {
   token: string;
 }
 
-type Tab = 'words' | 'players';
+type Tab = 'words' | 'players' | 'emails';
 
 const groupHistoryByDate = (historyObj?: Record<number, GameState>) => {
   if (!historyObj) return {};
@@ -92,6 +92,45 @@ export default function DevPanel({ token }: Props) {
     }
   };
 
+  const [cronLogs, setCronLogs] = useState<any[]>([]);
+  const [cronLogsLoading, setCronLogsLoading] = useState(false);
+  const [forceCronType, setForceCronType] = useState('');
+  const [cronRunning, setCronRunning] = useState(false);
+  const [expandedLogId, setExpandedLogId] = useState<number | null>(null);
+
+  const fetchCronLogs = async () => {
+    setCronLogsLoading(true);
+    setError(null);
+    try {
+      const res = await fetch(`/api/dev/cron-logs?token=${token}`);
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Failed to fetch cron logs');
+      setCronLogs(data);
+    } catch (e: any) {
+      setError(e.message);
+    } finally {
+      setCronLogsLoading(false);
+    }
+  };
+
+  const handleTriggerCron = async () => {
+    setCronRunning(true);
+    setError(null);
+    setActionMsg(null);
+    try {
+      const forceQuery = forceCronType ? `&forceType=${forceCronType}` : '';
+      const res = await fetch(`/api/cron/reminders?token=${token}${forceQuery}`);
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Failed to run cron job');
+      setActionMsg(`Triggered automated reminder check successfully. Action: "${data.actionType || 'none'}". Emails Sent: ${data.emailsSentCount || 0}.`);
+      await fetchCronLogs();
+    } catch (e: any) {
+      setError(e.message);
+    } finally {
+      setCronRunning(false);
+    }
+  };
+
   const fetchUsers = async () => {
     setUsersLoading(true);
     setError(null);
@@ -117,6 +156,7 @@ export default function DevPanel({ token }: Props) {
     setActionMsg(null);
     if (t === 'players' && users.length === 0) fetchUsers();
     if (t === 'words' && !dayData) fetchWords(offset, wordOffset);
+    if (t === 'emails') fetchCronLogs();
   };
 
   const confirmAction = async () => {
@@ -374,6 +414,7 @@ export default function DevPanel({ token }: Props) {
       <div className="dev-panel-tabs">
         <button className={tab === 'words' ? 'active' : ''} onClick={() => switchTab('words')}>Words</button>
         <button className={tab === 'players' ? 'active' : ''} onClick={() => switchTab('players')}>Players</button>
+        <button className={tab === 'emails' ? 'active' : ''} onClick={() => switchTab('emails')}>Reminder Logs</button>
       </div>
 
       {error && <div className="dev-panel-error">{error}</div>}
@@ -676,6 +717,167 @@ export default function DevPanel({ token }: Props) {
             ))}
           </div>
         </>
+      )}
+
+      {tab === 'emails' && (
+        <div className="dev-panel-cron" style={{ display: 'flex', flexDirection: 'column', gap: '16px', color: '#e2e8f0' }}>
+          {/* Cron Trigger Tool */}
+          <div style={{ background: 'rgba(0,0,0,0.25)', border: '1px solid rgba(255,255,255,0.08)', borderRadius: '8px', padding: '12px' }}>
+            <h3 style={{ margin: '0 0 10px 0', fontSize: '0.85rem', color: '#10b981', textTransform: 'uppercase', letterSpacing: '0.5px' }}>Trigger Automated Scheduler</h3>
+            <div style={{ display: 'flex', gap: '10px', alignItems: 'center' }}>
+              <select 
+                value={forceCronType} 
+                onChange={(e) => setForceCronType(e.target.value)}
+                style={{
+                  background: '#1e293b',
+                  border: '1px solid #475569',
+                  color: '#fff',
+                  borderRadius: '4px',
+                  padding: '6px 10px',
+                  fontSize: '0.8rem',
+                  outline: 'none',
+                  flex: 1
+                }}
+              >
+                <option value="">Default (run based on current Chicago time)</option>
+                <option value="live_streak">Force: Keep Streak Reminders (10 PM style)</option>
+                <option value="lost_streak">Force: Lost Streak Warnings (10 AM style)</option>
+                <option value="welcome_reminder">Force: Welcome Reminders</option>
+                <option value="weekly_digest">Force: Weekly Digests</option>
+              </select>
+              <button 
+                onClick={handleTriggerCron}
+                disabled={cronRunning}
+                style={{
+                  background: '#10b981',
+                  color: '#fff',
+                  border: 'none',
+                  borderRadius: '4px',
+                  padding: '6px 12px',
+                  fontSize: '0.8rem',
+                  fontWeight: 'bold',
+                  cursor: cronRunning ? 'default' : 'pointer',
+                  opacity: cronRunning ? 0.6 : 1
+                }}
+              >
+                {cronRunning ? 'Running...' : 'Run Scheduler'}
+              </button>
+            </div>
+            <p style={{ margin: '8px 0 0 0', fontSize: '0.72rem', color: '#64748b', lineHeight: '1.4' }}>
+              This runs the full automated logic. Users must have email consent set to TRUE in the DB to be processed.
+            </p>
+          </div>
+
+          {/* Cron Logs List */}
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '4px' }}>
+              <h3 style={{ margin: 0, fontSize: '0.85rem', color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '0.5px' }}>Recent Runs Log</h3>
+              <button 
+                onClick={fetchCronLogs}
+                disabled={cronLogsLoading}
+                style={{
+                  background: 'none',
+                  border: 'none',
+                  color: '#10b981',
+                  fontSize: '0.75rem',
+                  cursor: 'pointer',
+                  padding: 0,
+                  textDecoration: 'underline'
+                }}
+              >
+                Refresh
+              </button>
+            </div>
+
+            {cronLogsLoading ? (
+              <div className="dev-panel-loading" style={{ padding: '20px 0' }}>Loading logs...</div>
+            ) : cronLogs.length === 0 ? (
+              <div style={{ textAlign: 'center', padding: '20px', color: '#64748b', fontSize: '0.8rem', border: '1px dashed #334155', borderRadius: '8px' }}>
+                No executions logged yet. Trigger the scheduler to generate logs.
+              </div>
+            ) : (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', maxHeight: '400px', overflowY: 'auto', paddingRight: '4px' }}>
+                {cronLogs.map((log: any) => {
+                  const isExpanded = expandedLogId === log.id;
+                  const runDate = new Date(log.run_at).toLocaleString();
+                  const detailsObj = typeof log.details === 'string' ? JSON.parse(log.details) : log.details;
+                  
+                  return (
+                    <div 
+                      key={log.id} 
+                      style={{
+                        background: 'rgba(15, 23, 42, 0.4)',
+                        border: `1px solid ${log.success ? 'rgba(16, 185, 129, 0.2)' : 'rgba(239, 68, 68, 0.2)'}`,
+                        borderRadius: '6px',
+                        padding: '10px',
+                        fontSize: '0.75rem'
+                      }}
+                    >
+                      <div 
+                        style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', cursor: 'pointer' }}
+                        onClick={() => setExpandedLogId(isExpanded ? null : log.id)}
+                      >
+                        <div>
+                          <span style={{ fontWeight: 'bold', color: log.success ? '#10b981' : '#ef4444', marginRight: '6px' }}>
+                            {log.success ? '● SUCCESS' : '● FAILED'}
+                          </span>
+                          <span style={{ color: '#fff', fontWeight: 'bold' }}>{log.action_type || 'unspecified'}</span>
+                          <span style={{ color: '#64748b', marginLeft: '8px' }}>{runDate}</span>
+                        </div>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                          <span style={{ color: '#94a3b8' }}>
+                            Sent: <strong style={{ color: '#10b981' }}>{log.sent_count ?? 0}</strong> | Skipped: <strong>{log.skipped_count ?? 0}</strong>
+                          </span>
+                          <span style={{ color: '#64748b', fontSize: '0.7rem' }}>{isExpanded ? '▼' : '▶'}</span>
+                        </div>
+                      </div>
+
+                      {isExpanded && (
+                        <div style={{ marginTop: '10px', paddingTop: '10px', borderTop: '1px solid rgba(255,255,255,0.05)', display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                          {log.success ? (
+                            <>
+                              {detailsObj?.sentEmails?.length > 0 && (
+                                <div>
+                                  <div style={{ color: '#10b981', fontWeight: 'bold', marginBottom: '4px' }}>✓ Sent Emails:</div>
+                                  <div style={{ display: 'flex', flexDirection: 'column', gap: '2px', paddingLeft: '8px' }}>
+                                    {detailsObj.sentEmails.map((email: any, idx: number) => (
+                                      <div key={idx} style={{ color: '#e2e8f0' }}>
+                                        - {email.email} ({email.type})
+                                      </div>
+                                    ))}
+                                  </div>
+                                </div>
+                              )}
+                              {detailsObj?.skippedUsers?.length > 0 && (
+                                <div>
+                                  <div style={{ color: '#f59e0b', fontWeight: 'bold', marginBottom: '4px' }}>◌ Skipped Users:</div>
+                                  <div style={{ display: 'flex', flexDirection: 'column', gap: '2px', paddingLeft: '8px', maxHeight: '150px', overflowY: 'auto' }}>
+                                    {detailsObj.skippedUsers.map((skip: any, idx: number) => (
+                                      <div key={idx} style={{ color: '#94a3b8' }}>
+                                        - {skip.email || `ID: ${skip.google_id.slice(0, 8)}...`}: <span style={{ color: '#94a3b8', opacity: 0.8 }}>({skip.reason || skip.error || 'skipped'})</span>
+                                      </div>
+                                    ))}
+                                  </div>
+                                </div>
+                              )}
+                              {(!detailsObj?.sentEmails?.length && !detailsObj?.skippedUsers?.length) && (
+                                <div style={{ color: '#64748b', fontStyle: 'italic' }}>No users met the email consent criteria.</div>
+                              )}
+                            </>
+                          ) : (
+                            <div style={{ color: '#ef4444', fontFamily: 'monospace' }}>
+                              Error: {detailsObj?.error || 'Unknown execution failure.'}
+                            </div>
+                          )}
+                        </div>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+        </div>
       )}
 
       {confirmTarget && (

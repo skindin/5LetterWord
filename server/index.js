@@ -72,6 +72,19 @@ if (process.env.DATABASE_URL) {
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
       )
     `);
+    
+    // Create cron_logs table to track automated email runs and debug them
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS cron_logs (
+        id SERIAL PRIMARY KEY,
+        run_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        action_type TEXT,
+        success BOOLEAN,
+        sent_count INTEGER,
+        skipped_count INTEGER,
+        details JSONB
+      )
+    `);
     console.log("Database tables verified, migrated, and ready.");
   }).catch(err => {
     console.error("CRITICAL DB INIT ERROR. Connection failed:", err.message);
@@ -1371,7 +1384,7 @@ app.get('/api/cron/reminders', async (req, res) => {
         return res.status(500).json({ error: "CRON_SECRET environment variable is not configured" });
     }
 
-    // Validate CRON_SECRET either from Bearer Token or from query parameter
+    // Validate CRON_SECRET either from Bearer Token, from query parameter, or via developer token
     let requestSecret = null;
     if (authHeader && authHeader.startsWith('Bearer ')) {
         requestSecret = authHeader.substring(7);
@@ -1379,7 +1392,19 @@ app.get('/api/cron/reminders', async (req, res) => {
         requestSecret = querySecret;
     }
 
-    if (requestSecret !== cronSecret) {
+    let isAuthorized = (cronSecret && requestSecret === cronSecret);
+    
+    if (!isAuthorized) {
+        const devToken = req.query.token || (req.body && req.body.token);
+        if (devToken) {
+            const devResult = await getUserFromToken(devToken);
+            if (devResult && devResult.user && devResult.user.is_dev) {
+                isAuthorized = true;
+            }
+        }
+    }
+
+    if (!isAuthorized) {
         return res.status(401).json({ error: "Unauthorized" });
     }
 
@@ -1520,6 +1545,23 @@ app.get('/api/cron/reminders', async (req, res) => {
             }
         }
 
+        if (pool) {
+            try {
+                await pool.query(`
+                    INSERT INTO cron_logs (action_type, success, sent_count, skipped_count, details)
+                    VALUES ($1, $2, $3, $4, $5)
+                `, [
+                    actionType,
+                    true,
+                    sentEmails.length,
+                    skippedUsers.length,
+                    JSON.stringify({ sentEmails, skippedUsers })
+                ]);
+            } catch (dbLogErr) {
+                console.error("Failed to write successful cron log to DB:", dbLogErr);
+            }
+        }
+
         res.json({
             success: true,
             actionType,
@@ -1533,6 +1575,20 @@ app.get('/api/cron/reminders', async (req, res) => {
 
     } catch (error) {
         console.error("Error running reminder cron job:", error);
+        if (pool) {
+            try {
+                await pool.query(`
+                    INSERT INTO cron_logs (action_type, success, details)
+                    VALUES ($1, $2, $3)
+                `, [
+                    req.query.forceType || 'automated_cron',
+                    false,
+                    JSON.stringify({ error: error.message || String(error) })
+                ]);
+            } catch (dbLogErr) {
+                console.error("Failed to write failed cron log to DB:", dbLogErr);
+            }
+        }
         res.status(500).json({ error: "Failed to run reminder cron job" });
     }
 });
@@ -1684,6 +1740,24 @@ app.post('/api/dev/send-email', async (req, res) => {
     } catch (error) {
         console.error("Error manually sending email:", error);
         res.status(500).json({ error: "Failed to send email" });
+    }
+});
+
+// Dev-only: get recent cron execution logs
+app.get('/api/dev/cron-logs', async (req, res) => {
+    const payload = await requireDev(req, res);
+    if (!payload) return;
+
+    if (!pool) {
+        return res.status(500).json({ error: "Database not configured" });
+    }
+
+    try {
+        const result = await pool.query('SELECT * FROM cron_logs ORDER BY run_at DESC LIMIT 50');
+        res.json(result.rows);
+    } catch (error) {
+        console.error("Error fetching cron logs:", error);
+        res.status(500).json({ error: "Failed to fetch cron logs" });
     }
 });
 
