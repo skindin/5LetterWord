@@ -1373,7 +1373,21 @@ app.post('/api/dev/delete-account', async (req, res) => {
     if (!targetGoogleId) return res.status(400).json({ error: 'targetGoogleId required' });
     await pool.query('DELETE FROM users WHERE google_id = $1', [targetGoogleId]);
     res.json({ success: true });
-});
+// Helper to ensure the cron_logs table is created on-demand (self-healing migration)
+async function ensureCronLogsTable() {
+    if (!pool) return;
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS cron_logs (
+        id SERIAL PRIMARY KEY,
+        run_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        action_type TEXT,
+        success BOOLEAN,
+        sent_count INTEGER,
+        skipped_count INTEGER,
+        details JSONB
+      )
+    `);
+}
 
 // Endpoint to trigger automated reminder emails (scheduled via external cron or manual triggers)
 app.get('/api/cron/reminders', async (req, res) => {
@@ -1418,6 +1432,9 @@ app.get('/api/cron/reminders', async (req, res) => {
     }
 
     try {
+        // Ensure log table exists (self-healing migration)
+        await ensureCronLogsTable();
+
         const todayDate = new Date();
         const todayDateStr = formatInTimeZone(todayDate, 'America/Chicago', 'yyyy-MM-dd');
         
@@ -1760,6 +1777,8 @@ app.get('/api/dev/cron-logs', async (req, res) => {
     }
 
     try {
+        // Ensure table exists on-demand
+        await ensureCronLogsTable();
         const result = await pool.query('SELECT * FROM cron_logs ORDER BY run_at DESC LIMIT 50');
         res.json(result.rows);
     } catch (error) {
