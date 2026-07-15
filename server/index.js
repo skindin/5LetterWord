@@ -1274,7 +1274,8 @@ app.post('/api/user/skip-email-prompt', async (req, res) => {
 
 async function requireDev(req, res) {
     if (!pool) { res.status(500).json({ error: 'Database not configured' }); return null; }
-    const result = await getUserFromToken(req.body.token);
+    const token = (req.body && req.body.token) || req.query.token;
+    const result = await getUserFromToken(token);
     if (!result) { res.status(401).json({ error: 'Invalid token' }); return null; }
     if (!result.user.is_dev) { res.status(403).json({ error: 'Not authorized' }); return null; }
     return { sub: result.user.google_id };
