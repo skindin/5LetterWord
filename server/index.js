@@ -1767,6 +1767,66 @@ app.get('/api/dev/cron-logs', async (req, res) => {
     }
 });
 
+// Dev-only: run diagnostics and check database schema/tables
+app.get('/api/dev/db-diagnostics', async (req, res) => {
+    const payload = await requireDev(req, res);
+    if (!payload) return;
+
+    if (!pool) {
+        return res.status(500).json({ error: "Database not configured" });
+    }
+
+    try {
+        const tablesResult = await pool.query(`
+            SELECT table_name 
+            FROM information_schema.tables 
+            WHERE table_schema = 'public'
+        `);
+        const tables = tablesResult.rows.map(r => r.table_name);
+
+        let cronLogsStatus = "unknown";
+        let cronLogsError = null;
+        try {
+            const countRes = await pool.query('SELECT COUNT(*) FROM cron_logs');
+            cronLogsStatus = `Exists (row count: ${countRes.rows[0].count})`;
+        } catch (e) {
+            cronLogsStatus = "Error/Does not exist";
+            cronLogsError = e.message;
+        }
+
+        let migrationAttempt = "not attempted";
+        if (!tables.includes('cron_logs')) {
+            try {
+                await pool.query(`
+                  CREATE TABLE IF NOT EXISTS cron_logs (
+                    id SERIAL PRIMARY KEY,
+                    run_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                    action_type TEXT,
+                    success BOOLEAN,
+                    sent_count INTEGER,
+                    skipped_count INTEGER,
+                    details JSONB
+                  )
+                `);
+                migrationAttempt = "Success (table created)";
+            } catch (migErr) {
+                migrationAttempt = `Failed: ${migErr.message}`;
+            }
+        }
+
+        res.json({
+            success: true,
+            tablesInDb: tables,
+            cronLogsStatus,
+            cronLogsError,
+            migrationAttempt
+        });
+    } catch (error) {
+        console.error("Error running DB diagnostics:", error);
+        res.status(500).json({ error: error.message || String(error) });
+    }
+});
+
 // Serve static frontend files
 app.use(express.static(path.join(__dirname, '../dist')));
 app.use((req, res, next) => {
