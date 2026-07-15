@@ -1763,7 +1763,7 @@ app.get('/api/dev/cron-logs', async (req, res) => {
         res.json(result.rows);
     } catch (error) {
         console.error("Error fetching cron logs:", error);
-        res.status(500).json({ error: "Failed to fetch cron logs" });
+        res.status(500).json({ error: error.message || String(error) });
     }
 });
 
