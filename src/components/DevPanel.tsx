@@ -95,6 +95,7 @@ export default function DevPanel({ token }: Props) {
   const [cronLogs, setCronLogs] = useState<any[]>([]);
   const [cronLogsLoading, setCronLogsLoading] = useState(false);
   const [forceCronType, setForceCronType] = useState('');
+  const [targetCronUser, setTargetCronUser] = useState('');
   const [cronRunning, setCronRunning] = useState(false);
   const [expandedLogId, setExpandedLogId] = useState<number | null>(null);
 
@@ -103,8 +104,22 @@ export default function DevPanel({ token }: Props) {
     setError(null);
     try {
       const res = await fetch(`/api/dev/cron-logs?token=${token}`);
+      if (!res.ok) {
+        const txt = await res.text();
+        let errMsg = 'Failed to fetch cron logs';
+        try {
+          const parsed = JSON.parse(txt);
+          errMsg = parsed.error || errMsg;
+        } catch {
+          errMsg = `Server error (${res.status})`;
+        }
+        throw new Error(errMsg);
+      }
+      const contentType = res.headers.get('content-type');
+      if (!contentType || !contentType.includes('application/json')) {
+        throw new Error('Server returned non-JSON response. Make sure the backend server is updated/running.');
+      }
       const data = await res.json();
-      if (!res.ok) throw new Error(data.error || 'Failed to fetch cron logs');
       setCronLogs(data);
     } catch (e: any) {
       setError(e.message);
@@ -119,9 +134,24 @@ export default function DevPanel({ token }: Props) {
     setActionMsg(null);
     try {
       const forceQuery = forceCronType ? `&forceType=${forceCronType}` : '';
-      const res = await fetch(`/api/cron/reminders?token=${token}${forceQuery}`);
+      const targetQuery = targetCronUser ? `&targetGoogleId=${targetCronUser}` : '';
+      const res = await fetch(`/api/cron/reminders?token=${token}${forceQuery}${targetQuery}`);
+      if (!res.ok) {
+        const txt = await res.text();
+        let errMsg = 'Failed to run cron job';
+        try {
+          const parsed = JSON.parse(txt);
+          errMsg = parsed.error || errMsg;
+        } catch {
+          errMsg = `Server error (${res.status})`;
+        }
+        throw new Error(errMsg);
+      }
+      const contentType = res.headers.get('content-type');
+      if (!contentType || !contentType.includes('application/json')) {
+        throw new Error('Server returned non-JSON response. Make sure the backend server is updated/running.');
+      }
       const data = await res.json();
-      if (!res.ok) throw new Error(data.error || 'Failed to run cron job');
       setActionMsg(`Triggered automated reminder check successfully. Action: "${data.actionType || 'none'}". Emails Sent: ${data.emailsSentCount || 0}.`);
       await fetchCronLogs();
     } catch (e: any) {
@@ -724,27 +754,58 @@ export default function DevPanel({ token }: Props) {
           {/* Cron Trigger Tool */}
           <div style={{ background: 'rgba(0,0,0,0.25)', border: '1px solid rgba(255,255,255,0.08)', borderRadius: '8px', padding: '12px' }}>
             <h3 style={{ margin: '0 0 10px 0', fontSize: '0.85rem', color: '#10b981', textTransform: 'uppercase', letterSpacing: '0.5px' }}>Trigger Automated Scheduler</h3>
-            <div style={{ display: 'flex', gap: '10px', alignItems: 'center' }}>
-              <select 
-                value={forceCronType} 
-                onChange={(e) => setForceCronType(e.target.value)}
-                style={{
-                  background: '#1e293b',
-                  border: '1px solid #475569',
-                  color: '#fff',
-                  borderRadius: '4px',
-                  padding: '6px 10px',
-                  fontSize: '0.8rem',
-                  outline: 'none',
-                  flex: 1
-                }}
-              >
-                <option value="">Default (run based on current Chicago time)</option>
-                <option value="live_streak">Force: Keep Streak Reminders (10 PM style)</option>
-                <option value="lost_streak">Force: Lost Streak Warnings (10 AM style)</option>
-                <option value="welcome_reminder">Force: Welcome Reminders</option>
-                <option value="weekly_digest">Force: Weekly Digests</option>
-              </select>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+              <div style={{ display: 'flex', gap: '10px' }}>
+                <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                  <span style={{ fontSize: '0.65rem', color: '#94a3b8', fontWeight: 'bold' }}>Simulate Type:</span>
+                  <select 
+                    value={forceCronType} 
+                    onChange={(e) => setForceCronType(e.target.value)}
+                    style={{
+                      background: '#1e293b',
+                      border: '1px solid #475569',
+                      color: '#fff',
+                      borderRadius: '4px',
+                      padding: '6px 10px',
+                      fontSize: '0.8rem',
+                      outline: 'none',
+                      width: '100%'
+                    }}
+                  >
+                    <option value="">Default (run based on current Chicago time)</option>
+                    <option value="live_streak">Force: Keep Streak Reminders (10 PM style)</option>
+                    <option value="lost_streak">Force: Lost Streak Warnings (10 AM style)</option>
+                    <option value="welcome_reminder">Force: Welcome Reminders</option>
+                    <option value="weekly_digest">Force: Weekly Digests</option>
+                  </select>
+                </div>
+
+                <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                  <span style={{ fontSize: '0.65rem', color: '#94a3b8', fontWeight: 'bold' }}>Target User (Optional):</span>
+                  <select
+                    value={targetCronUser}
+                    onChange={(e) => setTargetCronUser(e.target.value)}
+                    style={{
+                      background: '#1e293b',
+                      border: '1px solid #475569',
+                      color: '#fff',
+                      borderRadius: '4px',
+                      padding: '6px 10px',
+                      fontSize: '0.8rem',
+                      outline: 'none',
+                      width: '100%'
+                    }}
+                  >
+                    <option value="">All Users (Consented only)</option>
+                    {users.map(u => (
+                      <option key={u.google_id} value={u.google_id}>
+                        {u.display_name || u.username || 'Anonymous'} ({u.email || 'No email'})
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              </div>
+
               <button 
                 onClick={handleTriggerCron}
                 disabled={cronRunning}
@@ -753,11 +814,12 @@ export default function DevPanel({ token }: Props) {
                   color: '#fff',
                   border: 'none',
                   borderRadius: '4px',
-                  padding: '6px 12px',
+                  padding: '8px 12px',
                   fontSize: '0.8rem',
                   fontWeight: 'bold',
                   cursor: cronRunning ? 'default' : 'pointer',
-                  opacity: cronRunning ? 0.6 : 1
+                  opacity: cronRunning ? 0.6 : 1,
+                  width: '100%'
                 }}
               >
                 {cronRunning ? 'Running...' : 'Run Scheduler'}

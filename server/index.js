@@ -1448,8 +1448,14 @@ app.get('/api/cron/reminders', async (req, res) => {
             });
         }
 
-        // Query only players who have registered emails AND have consented to emails
-        const usersRes = await pool.query('SELECT google_id, email, display_name, history, created_at FROM users WHERE email IS NOT NULL AND email_consent = TRUE');
+        // Query only players who have registered emails AND have consented to emails (or target single user for debugging)
+        const targetGoogleId = req.query.targetGoogleId;
+        let usersRes;
+        if (targetGoogleId) {
+            usersRes = await pool.query('SELECT google_id, email, display_name, history, created_at FROM users WHERE google_id = $1', [targetGoogleId]);
+        } else {
+            usersRes = await pool.query('SELECT google_id, email, display_name, history, created_at FROM users WHERE email IS NOT NULL AND email_consent = TRUE');
+        }
         const users = usersRes.rows;
 
         const sentEmails = [];
