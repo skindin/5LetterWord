@@ -1373,6 +1373,8 @@ app.post('/api/dev/delete-account', async (req, res) => {
     if (!targetGoogleId) return res.status(400).json({ error: 'targetGoogleId required' });
     await pool.query('DELETE FROM users WHERE google_id = $1', [targetGoogleId]);
     res.json({ success: true });
+});
+
 // Helper to ensure the cron_logs table is created on-demand (self-healing migration)
 async function ensureCronLogsTable() {
     if (!pool) return;
