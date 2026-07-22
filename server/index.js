@@ -1516,7 +1516,7 @@ app.get('/api/cron/reminders', async (req, res) => {
             if (actionType === 'lost_streak') {
                 // Send only if streak just broke today (diffDays === 2) and they did not play yesterday
                 const playedYesterday = Object.values(history).some(g => g && g.date === yesterdayDateStr && (g.status === 'won' || g.status === 'lost'));
-                if (diffDays === 2 && !playedYesterday) {
+                if (forceType === 'lost_streak' || (diffDays === 2 && !playedYesterday)) {
                     shouldSend = true;
                     emailTypeToSend = 'lost_streak';
                 }
