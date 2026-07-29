@@ -1446,6 +1446,8 @@ app.get('/api/cron/reminders', async (req, res) => {
 
         // Check if there is an explicit type override (for dev/testing)
         const forceType = req.query.forceType;
+        // Check if there is an explicit automated type query parameter (to bypass hourly restriction)
+        const cronType = req.query.type || req.query.action;
         
         // Otherwise determine action based on US Central Time hour
         const currentHourStr = formatInTimeZone(todayDate, 'America/Chicago', 'HH');
@@ -1455,6 +1457,8 @@ app.get('/api/cron/reminders', async (req, res) => {
         let actionType = null;
         if (forceType) {
             actionType = forceType;
+        } else if (cronType) {
+            actionType = cronType;
         } else if (currentHour === 10) {
             actionType = 'lost_streak';
         } else if (currentHour === 22) {
