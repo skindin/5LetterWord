@@ -1462,6 +1462,22 @@ app.get('/api/cron/reminders', async (req, res) => {
         }
 
         if (!actionType) {
+            if (pool) {
+                try {
+                    await pool.query(`
+                        INSERT INTO cron_logs (action_type, success, sent_count, skipped_count, details)
+                        VALUES ($1, $2, $3, $4, $5)
+                    `, [
+                        `inactive_hour_${currentHour}`,
+                        true,
+                        0,
+                        0,
+                        JSON.stringify({ message: `Skipped: Hour ${currentHour} is not a scheduled run hour (10 or 22 Chicago time).` })
+                    ]);
+                } catch (dbLogErr) {
+                    console.error("Failed to write inactive cron log to DB:", dbLogErr);
+                }
+            }
             return res.json({
                 success: true,
                 message: `No automated email reminders scheduled for hour ${currentHour} Central Time. (Automated runs occur at 10 AM and 10 PM Central Time).`
